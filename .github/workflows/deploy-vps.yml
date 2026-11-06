@@ -1,0 +1,52 @@
+name: Deploy to VPS (xpotify.cc)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'shared/**'
+      - 'seed-data/**'
+      - 'evals/**'
+      - 'scripts/**'
+      - 'deploy/vps/**'
+      - 'docker-compose.yml'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy (all, backend, frontend, evals)'
+        required: false
+        default: 'all'
+
+jobs:
+  deploy:
+    name: Deploy to Hetzner VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          command_timeout: 45m
+          script: |
+            echo "==== LOGGING IN TO VPS ===="
+            if [ ! -d /opt/hr-onboarding/.git ]; then
+              git clone https://github.com/hadizz/hr-onboarding.git /opt/hr-onboarding
+            fi
+            cd /opt/hr-onboarding
+            git fetch origin
+            git checkout main
+            git reset --hard origin/main
+            if [ -f /root/env.txt ] && [ ! -f .env ]; then
+              cp /root/env.txt .env
+            fi
+            echo "==== RUNNING DEPLOY SCRIPT ===="
+            chmod +x deploy/vps/deploy.sh deploy/vps/bootstrap-vps.sh deploy/vps/run-evals.sh
+            bash deploy/vps/deploy.sh ${{ github.event.inputs.service || 'all' }}
+            echo "==== DEPLOY COMPLETED ===="
