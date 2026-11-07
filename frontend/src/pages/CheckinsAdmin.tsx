@@ -16,7 +16,7 @@ export default function CheckinsAdmin() {
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [appliedFilter, setAppliedFilter] = useState<string | undefined>();
-  const [adminKey, setAdminKey] = useState(() => localStorage.getItem('onboardai_admin_key') || '');
+  const [adminKey, setAdminKey] = useState(() => localStorage.getItem('aarambh_ai_admin_key') || localStorage.getItem('onboardai_admin_key') || '');
   const [showAdminKey, setShowAdminKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +42,9 @@ export default function CheckinsAdmin() {
     const filter = employeeFilter.trim() || undefined;
     setAppliedFilter(filter);
     if (adminKey) {
-      localStorage.setItem('onboardai_admin_key', adminKey);
+      localStorage.setItem('aarambh_ai_admin_key', adminKey);
     } else {
+      localStorage.removeItem('aarambh_ai_admin_key');
       localStorage.removeItem('onboardai_admin_key');
     }
     loadCheckins(filter, adminKey);

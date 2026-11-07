@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "OnboardAI API",
+    "title": "Aarambh-AI API",
     "description": "Autonomous HR onboarding agent",
     "version": "1.0.0"
   },

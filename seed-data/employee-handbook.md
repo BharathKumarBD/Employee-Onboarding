@@ -58,7 +58,7 @@ Equipment requests are processed within 2-3 business days. Contact it-help@dayfo
 ## Direct Deposit & Payroll Setup
 
 New employees must set up direct deposit within their first week:
-1. Log in to the OnboardAI portal or contact HR.
+1. Log in to the Aarambh-AI portal or contact HR.
 2. Provide your bank name and the **last 4 digits** of your account number (full account numbers are never stored).
 3. Provide your routing number (US) or IFSC code (India).
 4. Select your tax filing status (W-4 for US, New/Old Regime for India, EU Standard for Europe).

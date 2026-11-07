@@ -1321,11 +1321,11 @@ export default function ChatPage() {
       <header className="h-14 shrink-0 px-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md z-10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-            OA
+            AA
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">OnboardAI</h1>
+              <h1 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Aarambh-AI</h1>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 font-semibold tracking-wide">
                 ENTERPRISE
               </span>
@@ -1408,7 +1408,7 @@ export default function ChatPage() {
                   </div>
                   <div>
                     <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                      Welcome to OnboardAI Enterprise
+                      Welcome to Aarambh-AI Enterprise
                     </h2>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-sm">
                       Autonomous HR agent with multi-region compliance, two-way HITL action confirmation, and deterministic policy gates.

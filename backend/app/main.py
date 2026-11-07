@@ -39,7 +39,7 @@ from shared.onboarding_operations import (
 )
 from shared.profiles import get_employee_profile, list_demo_profiles, upsert_employee_profile
 
-audit_logger = logging.getLogger("onboardai.audit")
+audit_logger = logging.getLogger("aarambh_ai.audit")
 
 
 # ─── Rate Limiting ──────────────────────────────────────────────────────────────
@@ -174,14 +174,21 @@ def _audit_log(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from shared.db import init_db
-    init_db()
+    try:
+        init_db()
+    except Exception as exc:
+        logging.getLogger("aarambh_ai").warning(
+            "Database connection could not be established at startup: %s. "
+            "Ensure PostgreSQL is running (e.g. run start-postgres.bat, or docker-compose up -d postgres).",
+            exc,
+        )
     yield
 
 
 # ─── App ────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="OnboardAI API",
+    title="Aarambh-AI API",
     description="Autonomous HR onboarding agent",
     version="1.0.0",
     lifespan=lifespan,

@@ -1,4 +1,4 @@
-"""Node-level telemetry and token accounting for OnboardAI multi-agent graph.
+"""Node-level telemetry and token accounting for Aarambh-AI multi-agent graph.
 
 Tracks per-node latency, LLM token usage, and estimated cost.
 Telemetry is yielded as SSE events alongside normal agent events.

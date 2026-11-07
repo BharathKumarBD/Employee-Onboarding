@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run OnboardAI agent evals against golden scenarios."""
+"""Run Aarambh-AI agent evals against golden scenarios."""
 
 from __future__ import annotations
 
@@ -117,7 +117,7 @@ def run_scenario(scenario: dict) -> dict:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run OnboardAI golden eval scenarios")
+    parser = argparse.ArgumentParser(description="Run Aarambh-AI golden eval scenarios")
     parser.add_argument(
         "--filter",
         help="Only run scenarios whose id contains this substring (e.g. prompt_injection)",

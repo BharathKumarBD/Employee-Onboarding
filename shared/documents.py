@@ -1,4 +1,4 @@
-"""Employee regulatory document signing vault for OnboardAI.
+"""Employee regulatory document signing vault for Aarambh-AI.
 
 Manages I-9, NDA, handbook acknowledgements, and country-specific forms.
 Documents are auto-seeded based on employee location when first accessed.

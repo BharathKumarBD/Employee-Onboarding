@@ -1,4 +1,4 @@
-"""Automated API contract testing for OnboardAI against OpenAPI specification.
+"""Automated API contract testing for Aarambh-AI against OpenAPI specification.
 
 Validates that key endpoints respond with expected status codes, data types,
 and request/response schemas matching docs/openapi.json.

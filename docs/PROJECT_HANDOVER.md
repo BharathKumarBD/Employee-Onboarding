@@ -1,13 +1,13 @@
-# OnboardAI (Employee-Onboarding) — Master Project Handover & Technical Specification
+# Aarambh-AI (Employee-Onboarding) — Master Project Handover & Technical Specification
 
 ---
 
 ## 1. Executive Summary & Project Purpose
 
-### What OnboardAI Does
-**OnboardAI** is an enterprise-grade autonomous AI onboarding assistant designed to streamline and automate the entire onboarding experience for newly hired employees at Dayforce.
+### What Aarambh-AI Does
+**Aarambh-AI** is an enterprise-grade autonomous AI onboarding assistant designed to streamline and automate the entire onboarding experience for newly hired employees at Dayforce.
 
-Instead of acting as a passive question-answering bot, OnboardAI operates as a **proactive, multi-agent workflow system** capable of:
+Instead of acting as a passive question-answering bot, Aarambh-AI operates as a **proactive, multi-agent workflow system** capable of:
 1. **Factual Policy Retrieval (RAG)**: Answering questions on company handbooks, IT security, benefits, code of conduct, and office facilities while providing exact Markdown source citations.
 2. **Autonomous Workflow Execution**: Creating, listing, and tracking mandatory onboarding tasks for new hires across HR, IT, and Team categories.
 3. **Check-in Scheduling**: Booking manager 1:1s and HR milestone reviews on specific calendar days.

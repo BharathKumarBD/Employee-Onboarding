@@ -1,4 +1,4 @@
-"""Authentication and authorization utilities for OnboardAI."""
+"""Authentication and authorization utilities for Aarambh-AI."""
 
 from __future__ import annotations
 

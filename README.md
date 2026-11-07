@@ -1,417 +1,254 @@
-# OnboardAI — Autonomous HR Onboarding Agent
+# Aarambh-AI — Autonomous HR Onboarding Agent
 
-An autonomous HR onboarding agent that answers policy questions with citations, proactively creates 30-day onboarding plans, tracks task completion, and schedules check-ins — with an automated eval suite.
+[![CI Status](https://github.com/monish-r/Employee-Onboarding/workflows/CI/badge.svg)](https://github.com/monish-r/Employee-Onboarding/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
+[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-orange)](https://github.com/langchain-ai/langgraph)
 
-**Portfolio v2** — evolution of a production RAG system deployed at [hr.433-cloud.com](https://hr.433-cloud.com).
+An enterprise-grade autonomous HR onboarding multi-agent system designed for the **Dayforce AI Challenge**. 
 
-Built for the [Digital Workforce Senior AI Agent Developer](https://careers.digitalworkforce.eu/jobs/7932451-senior-ai-agent-developer-to-our-office-in-helsinki/) role.
+**Aarambh-AI** transforms employee onboarding from a passive question-and-answer chat interface into an **active, autonomous workflow system**: it answers policy questions with Markdown source citations, proactively generates personalized 30-day onboarding checklists, handles equipment provisioning with Human-in-the-Loop approval cards, enforces regulatory compliance (I-9, EPF, GDPR), and tracks milestone readiness.
 
-## Problem
+---
 
-New hires ask the same 50 HR questions. HR teams manually track onboarding tasks across IT, benefits, and team integration. v1 solved Q&A with RAG; **v2 adds autonomous workflow execution** — the gap between a chatbot and an enterprise agent.
+## The Problem
 
-## v1 → v2 Evolution
+New hires are bombarded with fragmented information across IT, payroll, benefits, and team guidelines. Simultaneously, HR and IT administrators manually track task checklists, equipment delivery, and statutory document compliance across jurisdictions.
 
-| v1 (Deployed) | v2 (This repo) |
-|---|---|
-| Django + LlamaIndex RAG API | FastAPI + LangGraph agent |
-| Passive document Q&A | Multi-tool autonomous agent |
-| Streaming chat only | Chat + task tracking + check-ins |
-| No evals | 28-scenario automated eval suite |
-| Backend only | Python + React full stack |
-| — | Custom MCP server for HR tools |
+- **Standard chatbots fail here**: They can answer basic questions, but they cannot verify credentials, track dependencies, enforce regulatory gates, or safely execute state-changing actions.
+- **Aarambh-AI bridges the gap**: Combining strict **deterministic compliance gates** with an autonomous **4-node LangGraph multi-agent system**.
+
+---
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  subgraph frontend [React Frontend]
-    Chat[Chat UI]
-    Progress[Onboarding Progress]
-  end
-  subgraph backend [FastAPI Backend]
-    API[REST + SSE API]
-    Agent[LangGraph Agent]
-  end
-  subgraph tools [HR Tools]
-    MCP[MCP Server]
-    RAG[Chroma RAG]
-    Tasks[Postgres Tasks]
-  end
-  Chat --> API
-  Progress --> API
-  API --> Agent
-  Agent --> RAG
-  Agent --> Tasks
-  MCP --> RAG
-  MCP --> Tasks
+flowchart TD
+    User([New Hire / HR Admin]) --> Frontend[React 19 + TypeScript + Tailwind UI]
+    Frontend -->|SSE Token Stream / REST| API[FastAPI Gateway :8000]
+    
+    subgraph SecurityLayer [Enterprise Security & Guardrails]
+        Sanitizer[Input Sandbox & Length Validation]
+        InjectionFilter[16-Pattern Injection Detector]
+        AuthRBAC[PBKDF2 Auth & IDOR Ownership Check]
+    end
+    API --> SecurityLayer
+    
+    subgraph MultiAgentGraph [LangGraph Multi-Agent Orchestration]
+        Orchestrator[Orchestrator Agent / RoutePlan JSON]
+        ResearchAgent[Research Specialist - ReAct]
+        WorkflowAgent[Workflow Specialist - ReAct]
+        Synthesizer[Synthesizer Agent - Grounded Response]
+        
+        Orchestrator -->|needs_research| ResearchAgent
+        Orchestrator -->|needs_workflow| WorkflowAgent
+        ResearchAgent --> Synthesizer
+        WorkflowAgent --> Synthesizer
+    end
+    SecurityLayer --> Orchestrator
+    
+    subgraph ToolingAndStorage [Data & Tool Infrastructure]
+        RAG[(ChromaDB Vector Store / Seed Policies)]
+        DB[(PostgreSQL 16 Relational Store)]
+        ComplianceFSM[Deterministic Compliance FSM]
+        MCP[FastMCP Server :server.py]
+    end
+    
+    ResearchAgent --> RAG
+    WorkflowAgent --> DB
+    WorkflowAgent --> ComplianceFSM
+    MCP --> DB
+    MCP --> RAG
 ```
 
-## Technology Stack & Rubric Compliance
+---
 
-This project is built to satisfy industry standards and enterprise evaluation requirements:
+## Evaluation Rubric & Compliance
 
-| Component | Standard / Requirement | Implementation in OnboardAI |
-|---|---|---|
-| **Local Development** | Major IDEs (VS Code, Eclipse, IntelliJ) | Developed and tested in Antigravity / VS Code / Cursor |
-| **AI-Assisted Coding** | Cursor, GitHub Copilot | Configured with `.cursor/plans` and `.cursor/mcp.json.example` |
-| **Frontend** | React / TypeScript | React 19 + TypeScript + Tailwind CSS |
-| **Backend** | Python FastAPI, Node.js, or .NET | Python FastAPI with async streaming & lifespan events |
-| **LLM Integration** | Open-source or open-weight LLMs | Configurable via `LLM_MODEL` & `LLM_BASE_URL` (Llama 3.1, Mistral, Groq, vLLM, Ollama, or OpenAI) |
-| **Orchestration** | Lightweight / LangGraph / LangChain | LangGraph 4-node `StateGraph` multi-agent orchestration |
-| **Knowledge Retrieval** | Vector store over approved docs | ChromaDB vector store over approved HR & location policies |
-| **Data Storage** | PostgreSQL, SQLite, or MongoDB | PostgreSQL 16 (`psycopg3`) with normalized schemas |
-| **API Contract** | OpenAPI Specification | Dynamic at `/openapi.json` and static in [`docs/openapi.json`](docs/openapi.json) |
-| **Validation** | Pydantic / JSON Schema | Pydantic v2 on all API schemas and tool parameters |
-| **Testing** | Unit, Integration, & Evaluation | 26-suite unit tests (`tests/test_improvements.py`), OpenAPI contract tests (`tests/test_api_contract.py`), 36 golden evals, and DeepEval |
-| **Delivery** | GitHub repository with CI checks | Documented repository with automated CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) |
+Built strictly against Dayforce's AI evaluation framework:
+
+| Evaluation Category | Weight | How Aarambh-AI Satisfies It |
+|---|:---:|---|
+| **1. Product Value** | **25%** | **Clear user problem**: Alleviates new hire cognitive overload and HR administrative bottleneck.<br>**Practical workflow**: Day 1 orientation, dynamic 30-day plan, payroll direct deposit, equipment provisioning, document e-signing (Form I-9, EPF Form 11, NDA).<br>**Measurable outcomes**: Deterministic **Readiness Score** (`calculate_readiness()`), real-time completion gauge, and Control Tower dashboard (`/dashboard`). |
+| **2. Harness Engineering** | **25%** | **Structured contracts**: OpenAPI 3.0 specification (`docs/openapi.json`), Pydantic v2 schemas.<br>**Validation & guardrails**: Input length caps, PII account masking, sliding-window rate limiting.<br>**Human oversight (HITL)**: Two-way Action Proposal Cards for equipment requests and check-in bookings requiring user confirmation.<br>**Deterministic gates**: Code-level compliance FSM (`shared/compliance.py`) blocking production access until Security Training is completed.<br>**Injection defense**: Input sandboxing (`<user_input>`), write-tool blocking on suspected prompts, canned hijack output detection. |
+| **3. LLM Implementation** | **20%** | **Appropriate grounding**: RAG retrieval over approved policies (`employee-handbook.md`, `location-india.md`, `it-setup.md`) with UI citation badges.<br>**Prompt design**: Multi-agent separation (Orchestrator, Research, Workflow, Synthesizer) with persona-aware context injection.<br>**Model flexibility**: Seamless support for Google Gemini (`gemini-1.5-flash`), open-weight models via Groq (Meta Llama 3.1 8B), Ollama, and OpenAI (`gpt-4o-mini`). |
+| **4. Engineering Quality** | **15%** | **Testing**: 34 unit and contract tests in `tests/` (100% pass rate).<br>**Eval suite**: 36 golden evaluation scenarios (`evals/scenarios.yaml`) + DeepEval LLM-as-judge.<br>**API design**: Clean RESTful architecture, SSE real-time streaming, and FastMCP protocol integration.<br>**Observability**: Relational `audit_logs`, `agent_executions` latency tracking, and token accounting.<br>**Documentation**: Exhaustive guides in `docs/` (`SECURITY.md`, `MULTI-AGENT.md`, `EVALS.md`, `RUN.md`). |
+| **5. Demo Recording** | **15%** | **Demo readiness**: Pre-seeded demo employee (Alex Chen, Software Engineer, Day 1) with switchable personas (FTE, Contractor, Intern; India, USA, Finland).<br>**2-minute demo flow**: Policy Q&A with citations -> task creation -> HITL action card confirmation -> compliance prerequisite blocking -> dashboard control tower view. |
 
 ---
 
-## Open-Source & Open-Weight Model Verification
+## Multi-Model & Open-Weight Support
 
-To satisfy requirements for open-source / open-weight models, OnboardAI supports standard OpenAI-compatible endpoints with no code changes:
+Aarambh-AI runs on frontier or open-weight models with zero code modifications:
 
-- **Meta Llama 3.1 (8B / 70B)**: Licensed under the **Meta Llama 3.1 Community License Agreement** (permissive open-weight license permitting commercial and evaluation use).
-- **Mistral 7B / Nemo**: Licensed under **Apache License 2.0** (fully permissive open-source license).
-- **Configuration**:
-  - Run with cloud-hosted open weights: Set `LLM_BASE_URL=https://api.groq.com/openai/v1` and `LLM_MODEL=llama-3.1-8b-instant`.
-  - Run locally: Set `LLM_BASE_URL=http://localhost:11434/v1` and `LLM_MODEL=llama3.1`.
-  - Default: Standard OpenAI models (`gpt-4o-mini`).
+- **Google Gemini**: Set `GEMINI_API_KEY` and `LLM_MODEL=gemini-1.5-flash` (or `gemini-2.0-flash`).
+- **Meta Llama 3.1 (Groq Cloud)**: Set `OPENAI_API_KEY=gsk_...`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, and `LLM_MODEL=llama-3.1-8b-instant`. (Completely free, 14,400 req/day).
+- **OpenAI**: Set `OPENAI_API_KEY=sk-...` and `LLM_MODEL=gpt-4o-mini`.
+- **Local Ollama / vLLM**: Set `LLM_BASE_URL=http://localhost:11434/v1` and `LLM_MODEL=llama3.1`.
+
+> **Resolving 429 RESOURCE_EXHAUSTED Quota Errors:**  
+> If Google AI Studio returns a free-tier quota exhaustion error (limit 500 requests/day per model), simply change `LLM_MODEL` in `.env` to another model (e.g. from `gemini-3.5-flash-lite` to `gemini-1.5-flash` or `gemini-2.0-flash`), or switch to Groq `llama-3.1-8b-instant`. Each model maintains an independent daily quota.
 
 ---
-
-## Features
-
-- **LangGraph Multi-Agent Orchestration**: 4-node `StateGraph` (Orchestrator, Research Specialist, Workflow Specialist, Synthesizer) with dynamic JSON routing
-- **Location-Specific Intelligence**: Automatically tailors benefits, holidays, and compliance based on worker location (India, USA, Finland)
-- **Autonomous HR Workflows**: 30-day task tracking, manager 1:1 scheduling, equipment provisioning requests, and compliance training assignments
-- **Custom FastMCP Server**: Exposing HR tools over stdio for Cursor and Claude Desktop integrations
-- **Chroma RAG & Fallback Engine**: Hybrid semantic vector retrieval and Markdown seed search with strict document citations
-- **React UI**: Streaming chat with token-level updates, citation badges, tool-call visual indicators, and real-time onboarding progress sidebar
-- **Comprehensive Eval Harness**: 36 golden scenarios testing RAG accuracy, tool executions, compliance gates, and prompt-injection defense
-- **Enterprise Security & Auth**: Salted PBKDF2 hashing, HMAC session tokens, IDOR prevention, sliding-window rate limiting, and admin audit logging
-- **Payroll & Regulatory Document Vault (Phase 1)**: Bank details submission with PII masking, routing/IFSC validation, and country-tailored document e-signing (Form I-9, W-4, EPF Form 11, NDA)
-- **Multi-Dimensional Worker Matrix & Compliance FSM (Phase 2)**: Location × Worker Type × Department × Onboarding Stage composite profiling with deterministic access gating (Security Training prerequisites)
-- **Two-Way Human-in-the-Loop (HITL) Cards (Phase 3)**: Interactive Action Confirmation Cards for equipment orders and calendar scheduling with user confirmation before execution
-- **Enterprise Observability & Regional Partitioning (Phase 4)**: Node-level execution latency waterfalls, token usage and cost accounting, and ChromaDB regional vector partitioning
-- **LangGraph ReAct agent** with handbook search, personalized tasks, dependencies, check-ins, approvals, equipment, training, and assignment tools
-- **Custom MCP server** exposing the same HR tools for Cursor/Claude integration
-- **Chroma RAG** over seed HR documents with source citations
-- **React UI** — streaming chat, citation chips, tool-call indicators, onboarding progress sidebar
-- **Control tower dashboard** — readiness score, mandatory blockers, exception escalation, approval queue, and agent execution timeline at `/dashboard`
-- **Personalized workflow data** — employee profile, role/department-aware tasks, idempotency, prerequisite blocking, and audit history
-- **Eval harness** — 28 golden scenarios testing retrieval, tool use, answer quality, and prompt-injection resistance
-- **Prompt-injection defenses** — input sandboxing, output guardrails, write-tool blocking, server-side tool validation
-
-## Security & Governance
-
-OnboardAI implements defense-in-depth across the API, agent orchestration, and storage layers:
-
-| Layer | Mechanism | Protection |
-|---|---|---|
-| **Authentication** | PBKDF2-HMAC-SHA256 & signed bearer tokens | Verifies employee & admin identities without external JWT bloat |
-| **Server-Side Authorization** | `require_employee_access` | Prevents Insecure Direct Object References (IDOR); cross-employee requests return 403 |
-| **Admin Route Protection** | `X-Admin-Key` header & `require_admin_role` | Blocks unauthorized check-in access, resets, and equipment approvals |
-| **Rate Limiting** | Sliding-window IP limiter (20 req/min) | Prevents abuse, brute-force attacks, and LLM token exhaustion |
-| **Audit Logging** | Relational `audit_logs` table | Chronological audit trail for task completions, hardware requests, and resets |
-| **Input Sandboxing** | `<user_input>` boundary tags & regex scanning | Neutralizes system prompts, jailbreaks, developer mode, and override attacks |
-| **Tool Permissions** | Write-tool blocking & parameter validation | Restricts state changes when injection is suspected; validates integer ranges |
-| **Untrusted Doc Tagging** | Reference-only prompt constraints | Prevents retrieved documents from acting as system instruction overrides |
-| **Output Guardrail** | Canned hijack detection | Prevents hijacked replies and leaks of system instructions |
-
-Run injection evals: `./scripts/run-evals-docker.sh --filter prompt_injection` — see [docs/EVALS.md](docs/EVALS.md).
 
 ## Quick Start
 
-### Prerequisites
+### 1. Prerequisites
+- Python 3.10+
+- Node.js 18+ and npm
+- PostgreSQL 16+ or Docker
 
-- Docker & Docker Compose
-- Gemini API key (recommended), Grok API key, or OpenAI API key
-
-### Run with Docker
-
+### 2. Configuration
+Copy the sample environment file:
 ```bash
 cp .env.example .env
-# Edit .env and set GEMINI_API_KEY (or GROK_API_KEY / OPENAI_API_KEY)
+```
+Edit `.env` and set your preferred model credentials:
+```env
+# Example using Gemini
+GEMINI_API_KEY=your_gemini_api_key_here
+LLM_MODEL=gemini-1.5-flash
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
 
-docker-compose up --build
+# Example using Free Groq (Meta Llama 3.1)
+# OPENAI_API_KEY=gsk_your_groq_api_key_here
+# LLM_BASE_URL=https://api.groq.com/openai/v1
+# LLM_MODEL=llama-3.1-8b-instant
 ```
 
-- Frontend: http://localhost:5173
-- API docs: http://localhost:8000/docs
+---
 
-### Run locally (development)
+### Option A: Local Run (Windows — One-Click Scripts)
+
+The repository provides pre-configured Windows launchers:
+1. **Start Backend**: Double-click `run-backend.bat` (or run `./run-backend.ps1` in PowerShell).  
+   *API will run at `http://127.0.0.1:8000` (Docs: `http://127.0.0.1:8000/docs`).*
+2. **Start Frontend**: Double-click `run-frontend.bat` (or run `cd frontend && npm run dev`).  
+   *Web application will open at `http://localhost:5173`.*
+3. **Database**: If using local PostgreSQL, double-click `start-postgres.bat`.
+
+---
+
+### Option B: Local Run (Linux / macOS / Manual)
 
 **Backend:**
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r backend/requirements.txt
+source .venv/bin/activate
 export PYTHONPATH="$(pwd):$(pwd)/backend"
-export OPENAI_API_KEY=sk-...
-uvicorn app.main:app --reload --app-dir backend
+uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
 ```
 
 **Frontend:**
 ```bash
-cd frontend && npm install && npm run dev
+cd frontend
+npm install
+npm run dev
 ```
 
-**MCP Server:**
+---
+
+### Option C: Run with Docker Compose
+
 ```bash
-pip install -r mcp-server/requirements.txt
-export PYTHONPATH="$(pwd)"
-python mcp-server/server.py
+docker-compose up --build
 ```
+- **Web App**: `http://localhost:5173`
+- **FastAPI Documentation**: `http://localhost:8000/docs`
+- **Database Admin (pgAdmin)**: `http://localhost:8080` (user: `admin@onboardai.com` / `admin`)
 
-## Eval Suite
+---
 
-> Full documentation: [docs/EVALS.md](docs/EVALS.md)
+## Running Automated Tests & Evaluations
 
-### Docker (recommended)
-
-Uses the same backend image and Postgres as the app. Results land on your machine at `evals/results/latest.json`.
-
+### 1. Unit & Contract Test Suite
+Verify API contracts, IDOR access controls, input sanitization, and security rules:
 ```bash
-# Make sure .env has OPENAI_API_KEY, then:
+.venv\Scripts\python.exe -m pytest
+```
+*Expected: 34 passed across `test_api_contract.py` and `test_improvements.py`.*
 
-# All 28 scenarios (~5–8 min)
+### 2. Golden Evaluation Suite (36 Scenarios)
+Run deterministic evaluations for RAG citations, tool execution, and prompt-injection defense:
+```bash
+# In Docker
 ./scripts/run-evals-docker.sh
 
-# Injection scenarios only (~1 min)
-./scripts/run-evals-docker.sh --filter prompt_injection
-
-# One scenario by id substring
-./scripts/run-evals-docker.sh --filter remote_policy
+# Or directly in Python
+.venv\Scripts\python.exe evals/run_evals.py
 ```
-
-**Manual equivalent** (without the helper script):
-
+To run only prompt injection resistance checks:
 ```bash
-docker-compose up -d postgres
-docker-compose --profile evals run --rm evals
-docker-compose --profile evals run --rm evals --filter prompt_injection
+.venv\Scripts\python.exe evals/run_evals.py --filter prompt_injection
 ```
 
-### View results
-
-**Terminal summary** — printed automatically by `./scripts/run-evals-docker.sh`.
-
-**Full JSON report:**
-
+### 3. DeepEval (LLM-as-Judge)
+Evaluate semantic faithfulness and answer relevancy:
 ```bash
-cat evals/results/latest.json
+.venv\Scripts\python.exe evals/run_deepeval.py
 ```
-
-Or open **Admin → Evals** in the app at `/admin/evals`.
-
-Open **Control tower** at `/dashboard` to review readiness, blockers, approvals, and recent agent executions for the demo employee.
-
-| Field | Meaning |
-|---|---|
-| `passed` | `true` / `false` |
-| `checks` | Which assertions passed (`contains`, `not_contains`, `tools_called`, …) |
-| `response_preview` | First 300 chars of the agent reply |
-| `tool_calls` | Tools the agent invoked |
-| `error` | Exception message if the run crashed |
-
-**Pretty-print one failed scenario:**
-
-```bash
-python3 -c "
-import json
-r = json.load(open('evals/results/latest.json'))
-for row in r['results']:
-    if not row.get('passed'):
-        print(json.dumps(row, indent=2))
-"
-```
-
-### Local Python (without Docker)
-
-```bash
-export PYTHONPATH="$(pwd):$(pwd)/backend"
-export $(grep -v '^#' .env | xargs)
-python evals/run_evals.py
-python evals/run_evals.py --filter prompt_injection
-```
-
-Results are saved to `evals/results/latest.json`.
-
-### DeepEval (LLM-as-judge)
-
-[DeepEval](https://github.com/confident-ai/deepeval) adds semantic metrics on top of the golden harness:
-
-| Scenario type | Metrics |
-|---|---|
-| RAG / handbook (`cites_source`) | Faithfulness + Answer Relevancy |
-| Workflow (tasks, check-ins) | Answer Relevancy |
-| `prompt_injection_*` | GEval injection-resistance rubric |
-
-**Docker:**
-
-```bash
-# All scenarios (~5–10 min, uses extra judge API calls)
-./scripts/run-evals-docker.sh deepeval
-
-# Injection only
-./scripts/run-evals-docker.sh deepeval --filter prompt_injection
-```
-
-Results: `evals/results/deepeval-latest.json`
-
-**Local:**
-
-```bash
-pip install -r evals/requirements.txt
-export PYTHONPATH="$(pwd):$(pwd)/backend"
-export $(grep -v '^#' .env | xargs)
-python evals/run_deepeval.py
-python evals/run_deepeval.py --filter remote_policy
-```
-
-**Pytest integration:**
-
-```bash
-deepeval test run evals/test_deepeval.py
-DEEPEVAL_FILTER=prompt_injection deepeval test run evals/test_deepeval.py
-```
-
-Optional env vars: `DEEPEVAL_THRESHOLD` (default `0.7`), `DEEPEVAL_MODEL` (default `gpt-4o-mini`).
-
-### Eval Scenarios (32 Golden Scenarios)
-
-The evaluation suite contains **32 deterministic scenarios** in `evals/scenarios.yaml`:
-
-| Scenario | Tests / Checks |
-|---|---|
-| remote_policy | Handbook citation + remote work keywords |
-| pto_policy | 25 PTO days from handbook |
-| proactive_tasks | Auto-creates 3+ onboarding tasks |
-| benefits_deadline | 30-day insurance enrollment |
-| vpn_setup | IT setup doc citation |
-| slack_channels | Slack channel info |
-| wellness_stipend | €50 wellness benefit |
-| security_requirements | 2FA within 48 hours |
-| schedule_checkin | Check-in tool invocation |
-| list_tasks | Task listing tool |
-| code_of_conduct | Harassment policy |
-| parental_leave | 16 weeks leave |
-| pension_match | 4% employer pension match |
-| secondary_parental_leave | 8 weeks secondary caregiver leave |
-| remote_days_limit | 3 remote days per week |
-| headquarters_location | Helsinki HQ |
-| it_helpdesk | IT support contact |
-| github_access | Developer GitHub onboarding |
-| disk_encryption_deadline | 24-hour encryption requirement |
-| remote_policy_and_first_week | Research + workflow in one question |
-| premium_health_plan | Premium plan dental coverage |
-| onboarding_buddy | Day 1 buddy meeting |
-| prompt_injection_fixed_response | Blocks canned "service down" hijack |
-| prompt_injection_hacker_down_message | Blocks hacker + "sorry we are down" variant |
-| prompt_injection_ignore_instructions | Blocks role-override attacks |
-| prompt_injection_reveal_prompt | Blocks system-prompt exfiltration |
-| prompt_injection_task_spam | Blocks mass task creation via injection |
-| prompt_injection_mixed_pto | Answers PTO despite injection suffix |
-| **india_public_holidays** | India national and festival holidays from location doc |
-| **india_statutory_benefits** | India PF (12%), Gratuity, ESIC statutory benefits |
-| **usa_health_and_retirement** | USA 401(k) retirement match and HSA health options |
-| **usa_i9_verification** | USA Form I-9 verification within 3 business days |
-| **payroll_setup_inquiry** | Direct deposit setup, masked account, and bank disbursement |
-| **document_signing_i9** | Form I-9 legal deadline within 3 days for USA employees |
-| **contractor_vs_fte_benefits** | Grounded explanation that contractors are not eligible for 401(k)/dental |
-| **compliance_prerequisite_blocking** | Access to AWS/GitHub gated by Security Awareness Training |
-
-**Evaluation Progression:**
-- **Initial Baseline**: 22 / 28 golden scenarios passed (78.6%)
-- **Intermediate**: 32 / 32 golden scenarios passed (100%)
-- **Full Playbook Implementation**: **36 / 36 golden scenarios passed (100%)**
 
 ---
 
-## Simulated vs Real External Integrations
+## Security Architecture
 
-To ensure zero-dependency local demonstrability without requiring paid third-party enterprise subscriptions, OnboardAI cleanly separates its interfaces:
-- **IT Hardware Procurement**: Simulated via PostgreSQL `equipment_allocations` table with status progression (`pending` -> `allocated` -> `delivered`) and IT Admin approval endpoints (`POST /api/admin/equipment/{id}/status`), ready for Jira Service Management / ServiceNow webhook binding.
-- **Compliance Learning (LMS)**: Simulated via `training_assignments` with automated enrollment for 6 standard compliance courses (GDPR, Security, Code of Conduct), ready for Workday Learning / Cornerstone API integration.
-- **HRIS Profile & Assignments**: Simulated via `employee_assignments` table with manager/buddy/location mapping, ready for BambooHR / Workday API sync.
-- **Real LLM & Embedding Integrations**: Live, production integration with OpenAI or open-weight models via Groq, Ollama, or vLLM, combined with local ChromaDB vector search.
+Aarambh-AI implements defense-in-depth across API, agent, and storage layers:
+
+| Security Layer | Implementation Mechanism | Threat Mitigated |
+|---|---|---|
+| **Authentication** | PBKDF2-HMAC-SHA256 (100,000 iterations) + HMAC session tokens | Credential theft, session forgery |
+| **Authorization** | `require_employee_access()` on all employee endpoints | Insecure Direct Object References (IDOR) |
+| **Admin Route Protection** | Constant-time `hmac.compare_digest` with `X-Admin-Key` header | Unauthorized reset, privilege escalation |
+| **Rate Limiting** | Sliding-window IP rate limiter (20 requests/minute) | Denial of Service (DoS), token exhaustion |
+| **Audit Logging** | Relational `audit_logs` table tracking admin and user actions | Non-repudiation, tamper investigation |
+| **Input Sandboxing** | `<user_input>` boundary tags + regex injection filter | System prompt overrides, jailbreaks |
+| **Tool Guardrails** | State-changing write tools blocked on suspected injections | Malicious task spam, unauthorized booking |
+| **Output Guardrail** | Canned hijack verification (`is_hijacked_response`) | Exfiltration of system instructions |
 
 ---
 
-## 2-Minute Demo Script (Interview)
+## 2-Minute Demo Script (Dayforce Walkthrough)
 
-1. Open http://localhost:5173 — **Alex Chen, Software Engineer, Day 1** is pre-loaded
-2. Ask: *"What's the remote work policy?"* → agent cites `employee-handbook.md`
-3. Ask: *"I just started, what should I do this week?"* → agent creates 4–5 tasks, progress bar updates
-4. Show eval output: `./scripts/run-evals-docker.sh --filter prompt_injection`
-5. Close: *"v1 was RAG Q&A I deployed for a client. v2 adds autonomous workflow execution."*
+1. **Access the App**: Navigate to `http://localhost:5173`. Pre-loaded persona: **Alex Chen, Software Engineer (Day 1)**.
+2. **Policy Grounding & Citations**:
+   - *Prompt*: `"What is the remote work policy?"`
+   - *Observation*: Agent cites `employee-handbook.md` with interactive citation badges.
+3. **Autonomous Task Creation & HITL Action Card**:
+   - *Prompt*: `"I just started today. What should I do this week and can you request a MacBook Pro for me?"`
+   - *Observation*: Agent automatically generates onboarding checklist tasks and displays an interactive **Action Confirmation Card** for the MacBook Pro order.
+4. **Deterministic Compliance Blocking**:
+   - *Prompt*: `"Can I get access to production AWS credentials today?"`
+   - *Observation*: Server-side compliance FSM blocks access until **Security Awareness Training** is completed.
+5. **Control Tower Dashboard**:
+   - Open `http://localhost:5173/dashboard` to display the real-time **Readiness Score gauge**, blocker count, and audit timeline.
+6. **Automated Verification**:
+   - Run `.venv\Scripts\python.exe -m pytest` in terminal to demonstrate **34/34 passing tests**.
 
-## Project Structure
+---
+
+## Repository Structure
 
 ```
-hr-onboarding/
-├── backend/           # FastAPI + LangGraph agent
-├── docs/              # Security, evals, deploy, multi-agent, run guides
-├── mcp-server/        # Python MCP HR tools
-├── frontend/          # React + Vite + Tailwind
-├── evals/             # Golden scenarios + DeepEval runners
-├── shared/            # RAG, tasks, DB, auth (used by backend + MCP)
-├── seed-data/         # HR handbook, benefits, IT docs, India/USA location docs
-├── tests/             # 15-suite comprehensive unit & security test suite
-└── docker-compose.yml
+Employee-Onboarding/
+├── backend/                  # FastAPI app & LangGraph multi-agent engine
+│   ├── agent/                # Multi-agent state graph, security, tools, telemetry
+│   └── app/                  # REST endpoints, SSE streams, middleware
+├── frontend/                 # React 19 + TypeScript + Tailwind CSS UI
+│   ├── src/pages/            # ChatPage, OnboardingDashboard, CheckinsAdmin, EvalsAdmin
+│   └── src/components/       # ChatMarkdown, interactive action cards
+├── shared/                   # Common core (RAG, database, compliance FSM, auth)
+├── seed-data/                # Markdown policy docs (Handbook, IT, Benefits, India, USA)
+├── evals/                    # 36 golden evaluation scenarios & DeepEval judge
+├── tests/                    # API contract and security unit test suites
+├── docs/                     # Specifications, OpenAPI, security architecture
+├── run-backend.bat           # One-click Windows backend runner
+├── run-frontend.bat          # One-click Windows frontend runner
+├── start-postgres.bat        # Local PostgreSQL launcher
+└── docker-compose.yml        # Multi-container orchestration
 ```
 
-## Production Roadmap
-
-- [ ] pgvector instead of embedded Chroma for multi-tenant scale
-- [ ] Real Slack / HRIS MCP integrations
-- [ ] OAuth2 / SAML SSO integration
-- [ ] PDF upload pipeline for custom handbooks
-- [x] DeepEval LLM-as-judge for faithfulness and injection scoring
-- [ ] OpenTelemetry tracing for agent observability
-
-### Security Hardening Status
-
-- [x] **Authentication** — PBKDF2 salted passwords and tamper-proof bearer session tokens (`/api/auth/login`, `/api/auth/me`)
-- [x] **Server-side Authorization & IDOR Protection** — `require_employee_access` strictly confines employees to their own records; cross-employee access returns 403 Forbidden
-- [x] **CORS lockdown** — strict configurable `ALLOWED_ORIGINS`
-- [x] **Admin route protection** — `X-Admin-Key` header and admin role enforcement on `/api/admin/*`, reset, and equipment approvals
-- [x] **Rate limiting** — sliding-window rate limit (20 req/min per IP) on `/api/chat` and `/api/chat/stream`
-- [x] **Audit logging** — chronological relational logging in `audit_logs` table for administrative actions and task updates
-
-## Deploy
-
-### VPS (production demo)
-
-Live at https://hr.xpotify.cc · API https://hr-api.xpotify.cc · Eval dashboard `/admin/evals`
-
-Pushes to `main` that touch `backend/`, `frontend/`, `evals/`, `shared/`, or `deploy/vps/` trigger GitHub Actions deploy to Hetzner. After each deploy, **golden evals run automatically** and populate the admin dashboard (results are gitignored, server-only).
-
-Full guide: [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md)
-
-```bash
-# Manual on server
-bash /opt/hr-onboarding/deploy/vps/deploy.sh
-bash /opt/hr-onboarding/deploy/vps/deploy.sh evals   # evals only
-```
-
-### Fly.io (backend)
-
-```bash
-fly launch --name onboardai-api --dockerfile backend/Dockerfile
-fly secrets set OPENAI_API_KEY=sk-...
-fly deploy
-```
-
-### Railway
-
-Connect the repo and set `OPENAI_API_KEY`. Use `backend/Dockerfile` for the API service and `frontend/Dockerfile` for the UI.
-
-## CV Bullet
-
-> **OnboardAI** — Autonomous HR onboarding agent (Python, LangGraph, MCP, React). Multi-tool agent that answers policy questions with citations, generates 30-day onboarding plans, and tracks task completion. Includes automated eval suite (28 scenarios, golden + DeepEval injection scoring). Evolution of production RAG system deployed at hr.433-cloud.com.
+---
 
 ## License
 
-MIT
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

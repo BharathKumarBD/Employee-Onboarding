@@ -1,6 +1,6 @@
-# OnboardAI Security Architecture
+# Aarambh-AI Security Architecture
 
-OnboardAI uses **defense-in-depth**: multiple independent security layers so that bypassing any single layer does not compromise the system.
+Aarambh-AI uses **defense-in-depth**: multiple independent security layers so that bypassing any single layer does not compromise the system.
 
 ---
 

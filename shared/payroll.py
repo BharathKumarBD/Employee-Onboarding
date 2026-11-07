@@ -1,4 +1,4 @@
-"""Payroll profile management for OnboardAI.
+"""Payroll profile management for Aarambh-AI.
 
 Handles bank account setup, tax filing status, and payroll verification.
 PII is masked at ingestion: only the last 4 digits of an account number are stored.

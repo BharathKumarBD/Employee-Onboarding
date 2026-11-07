@@ -29,7 +29,7 @@ def list_tables():
                 print(f" - {t}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Inspect OnboardAI Database")
+    parser = argparse.ArgumentParser(description="Inspect Aarambh-AI Database")
     parser.add_argument("--table", "-t", type=str, help="Table name to inspect")
     parser.add_argument("--limit", "-l", type=int, default=10, help="Row limit")
     args = parser.parse_args()

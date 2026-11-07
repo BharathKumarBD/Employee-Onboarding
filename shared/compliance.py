@@ -1,4 +1,4 @@
-"""Deterministic Compliance Engine for OnboardAI.
+"""Deterministic Compliance Engine for Aarambh-AI.
 
 Enforces prerequisite checks and timeline validation independently of the LLM.
 All decisions are made in Python — the LLM cannot override these gates.

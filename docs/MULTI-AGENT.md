@@ -1,6 +1,6 @@
 # How the Multi-Agent Flow Works
 
-OnboardAI uses a **supervisor graph** (LangGraph), not a single chatbot. When you send a message, a security pre-check runs first, then an orchestrator delegates to specialist agents, then a synthesizer writes the final reply.
+Aarambh-AI uses a **supervisor graph** (LangGraph), not a single chatbot. When you send a message, a security pre-check runs first, then an orchestrator delegates to specialist agents, then a synthesizer writes the final reply.
 
 ---
 

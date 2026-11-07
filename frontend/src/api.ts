@@ -224,7 +224,7 @@ export interface EvalReportBundle {
 
 export function getAuthToken(): string | null {
   try {
-    return localStorage.getItem('onboardai_token');
+    return localStorage.getItem('aarambh_ai_token') || localStorage.getItem('onboardai_token');
   } catch {
     return null;
   }
@@ -233,8 +233,9 @@ export function getAuthToken(): string | null {
 export function setAuthToken(token: string | null): void {
   try {
     if (token) {
-      localStorage.setItem('onboardai_token', token);
+      localStorage.setItem('aarambh_ai_token', token);
     } else {
+      localStorage.removeItem('aarambh_ai_token');
       localStorage.removeItem('onboardai_token');
     }
   } catch {

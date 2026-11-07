@@ -20,7 +20,7 @@ export default function OnboardingDashboard() {
   const [exceptions, setExceptions] = useState<Record<string, unknown>[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [executions, setExecutions] = useState<Execution[]>([]);
-  const [adminKey, setAdminKey] = useState(() => localStorage.getItem('onboardai_admin_key') || '');
+  const [adminKey, setAdminKey] = useState(() => localStorage.getItem('aarambh_ai_admin_key') || localStorage.getItem('onboardai_admin_key') || '');
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -100,6 +100,7 @@ export default function OnboardingDashboard() {
               value={adminKey}
               onChange={(event) => {
                 setAdminKey(event.target.value);
+                localStorage.setItem('aarambh_ai_admin_key', event.target.value);
                 localStorage.setItem('onboardai_admin_key', event.target.value);
               }}
               placeholder="Optional for employee readiness view"

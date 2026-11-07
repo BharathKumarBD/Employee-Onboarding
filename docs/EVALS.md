@@ -1,4 +1,4 @@
-# OnboardAI Eval Suite
+# Aarambh-AI Eval Suite
 
 Two complementary eval layers:
 

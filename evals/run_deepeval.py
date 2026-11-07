@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run OnboardAI scenarios through DeepEval LLM-as-judge metrics."""
+"""Run Aarambh-AI scenarios through DeepEval LLM-as-judge metrics."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ RESULTS_DIR = results_dir()
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run OnboardAI DeepEval metrics")
+    parser = argparse.ArgumentParser(description="Run Aarambh-AI DeepEval metrics")
     parser.add_argument(
         "--filter",
         help="Only run scenarios whose id contains this substring (e.g. prompt_injection)",

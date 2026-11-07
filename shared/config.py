@@ -11,30 +11,41 @@ CHROMA_PATH = DATA_DIR / "chroma"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GROK_API_KEY = os.getenv("GROK_API_KEY", "")
-LLM_API_KEY = GEMINI_API_KEY or GROK_API_KEY or OPENAI_API_KEY
-LLM_BASE_URL = os.getenv(
-    "LLM_BASE_URL",
-    (
-        "https://generativelanguage.googleapis.com/v1beta/openai/"
-        if GEMINI_API_KEY
-        else "https://api.x.ai/v1"
-        if GROK_API_KEY
-        else ""
-    ),
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GROK_API_KEY = os.getenv("GROK_API_KEY", "").strip()
+
+# Smart auto-detection for Groq (gsk_...) vs xAI Grok (xai-...) vs OpenAI
+is_groq = OPENAI_API_KEY.startswith("gsk_") or GROK_API_KEY.startswith("gsk_")
+is_xai = OPENAI_API_KEY.startswith("xai-") or GROK_API_KEY.startswith("xai-")
+
+if is_groq and not OPENAI_API_KEY and GROK_API_KEY:
+    OPENAI_API_KEY = GROK_API_KEY
+if is_xai and not GROK_API_KEY and OPENAI_API_KEY:
+    GROK_API_KEY = OPENAI_API_KEY
+
+LLM_API_KEY = (
+    GEMINI_API_KEY
+    or (OPENAI_API_KEY if is_groq else None)
+    or GROK_API_KEY
+    or OPENAI_API_KEY
 )
-LLM_MODEL = os.getenv(
-    "LLM_MODEL",
-    (
-        "gemini-2.5-flash"
-        if GEMINI_API_KEY
-        else "grok-3-mini"
-        if GROK_API_KEY
-        else "gpt-4o-mini"
-    ),
-)
+
+_default_base_url = ""
+_default_model = "gpt-4o-mini"
+
+if GEMINI_API_KEY:
+    _default_base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    _default_model = "gemini-2.5-flash"
+elif is_groq or "groq" in os.getenv("LLM_BASE_URL", "").lower():
+    _default_base_url = "https://api.groq.com/openai/v1"
+    _default_model = "openai/gpt-oss-20b"
+elif GROK_API_KEY or is_xai:
+    _default_base_url = "https://api.x.ai/v1"
+    _default_model = "grok-3-mini"
+
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", _default_base_url)
+LLM_MODEL = os.getenv("LLM_MODEL", _default_model)
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 DEFAULT_EMPLOYEE_ID = "alex-chen"
 
@@ -45,7 +56,7 @@ DATABASE_URL = os.getenv(
 
 # Security
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
-SESSION_SECRET = os.getenv("SESSION_SECRET", "onboardai-secure-session-secret-key-2026")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "aarambh-ai-secure-session-secret-key-2026")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
 DEFAULT_EMPLOYEE_PASSWORD = os.getenv("DEFAULT_EMPLOYEE_PASSWORD", "")
 TRUSTED_PROXIES = [

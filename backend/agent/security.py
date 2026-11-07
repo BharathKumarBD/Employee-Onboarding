@@ -1,4 +1,4 @@
-"""Prompt-injection defenses for OnboardAI."""
+"""Prompt-injection defenses for Aarambh-AI."""
 
 from __future__ import annotations
 
@@ -114,6 +114,8 @@ SYSTEM_PROMPT_FRAGMENTS: list[str] = [
     "security rules",
     "you are the onboardai orchestrator",
     "you are the onboardai research specialist",
+    "you are the aarambh-ai orchestrator",
+    "you are the aarambh-ai research specialist",
 ]
 
 WRITE_TOOL_NAMES = frozenset(

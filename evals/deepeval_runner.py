@@ -1,4 +1,4 @@
-"""DeepEval metric runner for OnboardAI golden scenarios."""
+"""DeepEval metric runner for Aarambh-AI golden scenarios."""
 
 from __future__ import annotations
 

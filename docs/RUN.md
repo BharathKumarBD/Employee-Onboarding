@@ -1,4 +1,4 @@
-# How to Run OnboardAI
+# How to Run Aarambh-AI
 
 Commands from the project root.
 
