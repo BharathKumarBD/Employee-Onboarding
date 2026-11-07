@@ -16,6 +16,15 @@ from pydantic import BaseModel, Field
 
 from agent.onboarding_agent import run_agent, stream_agent
 from agent.security import InputValidationError, validate_message_length
+from shared.auth import (
+    create_token,
+    get_current_user,
+    get_current_user_optional,
+    hash_password,
+    require_admin_role,
+    require_employee_access,
+    verify_password,
+)
 from shared.config import ADMIN_API_KEY, ALLOWED_ORIGINS, DEFAULT_EMPLOYEE_ID
 from shared.eval_results import load_eval_reports
 from shared.tasks import complete_task, get_onboarding_status, list_checkins, reset_employee_data
@@ -71,10 +80,12 @@ admin_key_header = APIKeyHeader(name="X-Admin-Key", auto_error=False)
 
 def _require_admin(api_key: str | None) -> None:
     """Raise 403 if admin key is configured and the provided key doesn't match."""
-    if not ADMIN_API_KEY:
+    import shared.config as config
+    key = getattr(config, "ADMIN_API_KEY", "")
+    if not key:
         # Admin key not configured — dev mode, allow access
         return
-    if not api_key or api_key != ADMIN_API_KEY:
+    if not api_key or api_key != key:
         raise HTTPException(status_code=403, detail="Admin access requires a valid X-Admin-Key header.")
 
 
@@ -128,6 +139,18 @@ app.add_middleware(
 
 # ─── Request Models ──────────────────────────────────────────────────────────────
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: str
+    role: str
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -146,6 +169,10 @@ class CompleteTaskRequest(BaseModel):
 class EquipmentRequest(BaseModel):
     item_type: str = "laptop"
     item_name: str
+
+
+class EquipmentStatusUpdateRequest(BaseModel):
+    status: str = "allocated"
 
 
 class AssignmentUpdateRequest(BaseModel):
@@ -170,12 +197,69 @@ def health():
     return {"status": "ok"}
 
 
+@app.post("/api/auth/login", response_model=LoginResponse)
+def login(creds: LoginRequest):
+    """Authenticate employee or admin, returning a signed session token."""
+    username = creds.username.strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
+
+    from shared.config import DEFAULT_ADMIN_PASSWORD, DEFAULT_EMPLOYEE_PASSWORD
+    from shared.db import get_connection
+
+    # 1. Check database for created user
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT username, password_hash, role FROM users WHERE username = %s", (username,))
+                row = cur.fetchone()
+                if row and verify_password(creds.password, row["password_hash"]):
+                    token = create_token(row["username"], row["role"])
+                    _audit_log("user_login", employee_id=row["username"], performed_by=row["username"])
+                    return LoginResponse(access_token=token, user_id=row["username"], role=row["role"])
+    except Exception:
+        pass
+
+    # 2. Check default bootstrap accounts if configured
+    if username == "admin":
+        if DEFAULT_ADMIN_PASSWORD and creds.password == DEFAULT_ADMIN_PASSWORD:
+            token = create_token("admin", "admin")
+            _audit_log("admin_login", employee_id="admin", performed_by="admin")
+            return LoginResponse(access_token=token, user_id="admin", role="admin")
+    elif username == DEFAULT_EMPLOYEE_ID:
+        if DEFAULT_EMPLOYEE_PASSWORD and creds.password == DEFAULT_EMPLOYEE_PASSWORD:
+            token = create_token(DEFAULT_EMPLOYEE_ID, "employee")
+            _audit_log("employee_login", employee_id=DEFAULT_EMPLOYEE_ID, performed_by=DEFAULT_EMPLOYEE_ID)
+            return LoginResponse(access_token=token, user_id=DEFAULT_EMPLOYEE_ID, role="employee")
+
+    # In dev mode with no passwords configured, allow demo employee or admin login
+    if not DEFAULT_ADMIN_PASSWORD and not DEFAULT_EMPLOYEE_PASSWORD:
+        role = "admin" if username == "admin" else "employee"
+        token = create_token(username, role)
+        _audit_log("dev_login", employee_id=username, performed_by=username)
+        return LoginResponse(access_token=token, user_id=username, role=role)
+
+    raise HTTPException(status_code=401, detail="Invalid username or password")
+
+
+@app.get("/api/auth/me")
+def get_me(user: dict[str, Any] = Security(get_current_user)):
+    """Return claims of the authenticated user."""
+    return user
+
+
 @app.post("/api/chat")
-def chat(request: ChatRequest, http_request: Request):
+def chat(
+    request: ChatRequest,
+    http_request: Request,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     ip = _get_client_ip(http_request)
     if not _check_rate_limit(ip):
         raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait before sending another message.")
     _validate_employee_id(request.employee_id)
+    if user:
+        require_employee_access(request.employee_id, user)
     try:
         history = _validate_chat_request(request)
         result = run_agent(request.message, request.employee_id, history)
@@ -187,11 +271,17 @@ def chat(request: ChatRequest, http_request: Request):
 
 
 @app.post("/api/chat/stream")
-async def chat_stream(request: ChatRequest, http_request: Request):
+async def chat_stream(
+    request: ChatRequest,
+    http_request: Request,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     ip = _get_client_ip(http_request)
     if not _check_rate_limit(ip):
         raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait before sending another message.")
     _validate_employee_id(request.employee_id)
+    if user:
+        require_employee_access(request.employee_id, user)
     try:
         history = _validate_chat_request(request)
     except InputValidationError as e:
@@ -216,18 +306,30 @@ async def chat_stream(request: ChatRequest, http_request: Request):
 
 
 @app.get("/api/onboarding/{employee_id}/status")
-def onboarding_status(employee_id: str):
+def onboarding_status(
+    employee_id: str,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     _validate_employee_id(employee_id)
+    if user:
+        require_employee_access(employee_id, user)
     return get_onboarding_status(employee_id)
 
 
 @app.post("/api/onboarding/{employee_id}/tasks/{task_id}/complete")
-def mark_task_complete(employee_id: str, task_id: int, body: CompleteTaskRequest | None = None):
+def mark_task_complete(
+    employee_id: str,
+    task_id: int,
+    body: CompleteTaskRequest | None = None,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     _validate_employee_id(employee_id)
+    if user:
+        require_employee_access(employee_id, user)
     result = complete_task(task_id, employee_id)
     if not result:
         raise HTTPException(status_code=404, detail="Task not found")
-    _audit_log("task_completed", employee_id=employee_id, details={"task_id": task_id})
+    _audit_log("task_completed", employee_id=employee_id, performed_by=user.get("sub", "api") if user else "api", details={"task_id": task_id})
     return result
 
 
@@ -236,11 +338,13 @@ def reset_onboarding(
     employee_id: str,
     http_request: Request,
     api_key: str | None = Security(admin_key_header),
+    user: dict[str, Any] | None = Security(get_current_user_optional),
 ):
     _validate_employee_id(employee_id)
-    _require_admin(api_key)
+    if not user or user.get("role") != "admin":
+        _require_admin(api_key)
     reset_employee_data(employee_id)
-    _audit_log("onboarding_reset", employee_id=employee_id, performed_by="admin")
+    _audit_log("onboarding_reset", employee_id=employee_id, performed_by=user.get("sub", "admin") if user else "admin")
     return {"status": "reset", "employee_id": employee_id}
 
 
@@ -249,11 +353,13 @@ def admin_checkins(
     http_request: Request,
     employee_id: str | None = None,
     api_key: str | None = Security(admin_key_header),
+    user: dict[str, Any] | None = Security(get_current_user_optional),
 ):
-    _require_admin(api_key)
+    if not user or user.get("role") != "admin":
+        _require_admin(api_key)
     if employee_id:
         _validate_employee_id(employee_id)
-    _audit_log("admin_checkins_viewed", employee_id=employee_id, performed_by="admin")
+    _audit_log("admin_checkins_viewed", employee_id=employee_id, performed_by=user.get("sub", "admin") if user else "admin")
     return {"checkins": list_checkins(employee_id)}
 
 
@@ -262,8 +368,10 @@ def admin_audit_logs(
     http_request: Request,
     limit: int = 100,
     api_key: str | None = Security(admin_key_header),
+    user: dict[str, Any] | None = Security(get_current_user_optional),
 ):
-    _require_admin(api_key)
+    if not user or user.get("role") != "admin":
+        _require_admin(api_key)
     try:
         from shared.db import get_connection
         with get_connection() as conn:
@@ -284,27 +392,70 @@ def admin_audit_logs(
 
 
 @app.get("/api/onboarding/{employee_id}/equipment")
-def get_equipment(employee_id: str):
+def get_equipment(
+    employee_id: str,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     _validate_employee_id(employee_id)
+    if user:
+        require_employee_access(employee_id, user)
     from shared.equipment import get_equipment_allocations
     return {"equipment": get_equipment_allocations(employee_id)}
 
 
 @app.post("/api/onboarding/{employee_id}/equipment/request")
-def request_new_equipment(employee_id: str, body: EquipmentRequest):
+def request_new_equipment(
+    employee_id: str,
+    body: EquipmentRequest,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     _validate_employee_id(employee_id)
+    if user:
+        require_employee_access(employee_id, user)
     from shared.equipment import request_equipment
     try:
         result = request_equipment(employee_id, body.item_type, body.item_name)
-        _audit_log("equipment_requested", employee_id=employee_id, details=result)
+        _audit_log("equipment_requested", employee_id=employee_id, performed_by=user.get("sub", "api") if user else "api", details=result)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@app.post("/api/admin/equipment/{equipment_id}/status")
+def update_equipment_request_status(
+    equipment_id: int,
+    body: EquipmentStatusUpdateRequest,
+    api_key: str | None = Security(admin_key_header),
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
+    """Admin/IT approval endpoint to update equipment status (pending -> allocated / delivered)."""
+    if not user or user.get("role") != "admin":
+        _require_admin(api_key)
+    from shared.equipment import update_equipment_status
+    try:
+        updated = update_equipment_status(equipment_id, body.status)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Equipment allocation not found")
+        _audit_log(
+            "equipment_status_updated",
+            employee_id=updated.get("employee_id"),
+            performed_by=user.get("sub", "admin") if user else "admin",
+            details=updated,
+        )
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+
 @app.get("/api/onboarding/{employee_id}/trainings")
-def get_trainings(employee_id: str):
+def get_trainings(
+    employee_id: str,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     _validate_employee_id(employee_id)
+    if user:
+        require_employee_access(employee_id, user)
     from shared.training import auto_assign_standard_trainings, list_training_assignments
     trainings = list_training_assignments(employee_id)
     if not trainings:
@@ -313,19 +464,30 @@ def get_trainings(employee_id: str):
 
 
 @app.post("/api/onboarding/{employee_id}/trainings/{training_id}/complete")
-def complete_training_task(employee_id: str, training_id: int):
+def complete_training_task(
+    employee_id: str,
+    training_id: int,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     _validate_employee_id(employee_id)
+    if user:
+        require_employee_access(employee_id, user)
     from shared.training import complete_training
     result = complete_training(training_id, employee_id)
     if not result:
         raise HTTPException(status_code=404, detail="Training assignment not found")
-    _audit_log("training_completed", employee_id=employee_id, details={"training_id": training_id})
+    _audit_log("training_completed", employee_id=employee_id, performed_by=user.get("sub", "api") if user else "api", details={"training_id": training_id})
     return result
 
 
 @app.get("/api/onboarding/{employee_id}/assignments")
-def get_assignments(employee_id: str):
+def get_assignments(
+    employee_id: str,
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
     _validate_employee_id(employee_id)
+    if user:
+        require_employee_access(employee_id, user)
     from shared.assignments import get_employee_assignment
     return get_employee_assignment(employee_id)
 
@@ -335,9 +497,11 @@ def update_assignments(
     employee_id: str,
     body: AssignmentUpdateRequest,
     api_key: str | None = Security(admin_key_header),
+    user: dict[str, Any] | None = Security(get_current_user_optional),
 ):
     _validate_employee_id(employee_id)
-    _require_admin(api_key)
+    if not user or user.get("role") != "admin":
+        _require_admin(api_key)
     from shared.assignments import set_employee_assignment
     result = set_employee_assignment(
         employee_id,
@@ -347,7 +511,7 @@ def update_assignments(
         buddy_email=body.buddy_email,
         location=body.location,
     )
-    _audit_log("assignments_updated", employee_id=employee_id, details=result)
+    _audit_log("assignments_updated", employee_id=employee_id, performed_by=user.get("sub", "admin") if user else "admin", details=result)
     return result
 
 

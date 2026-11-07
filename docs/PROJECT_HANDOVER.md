@@ -59,29 +59,35 @@ flowchart TD
 |---|---|---|---|
 | **Frontend** | React 19, Vite, Tailwind CSS 4 | `/frontend` | Chat interface with live token streaming, agent thought inspection, interactive task completion checklist, and admin dashboards. |
 | **Backend API** | FastAPI, Uvicorn, SSE-Starlette | `/backend/app/main.py` | Exposes REST endpoints, Server-Sent Events (SSE) streaming, input sanitization, rate limiting, and RBAC authentication. |
+| **Auth & Security** | PBKDF2-HMAC-SHA256 & Session Tokens | `/shared/auth.py` | Salting and password hashing, tamper-proof bearer tokens, employee IDOR authorization, admin role enforcement. |
 | **Agent Engine** | LangGraph, LangChain-Core | `/backend/agent/multi_agent.py` | 4-node directed acyclic graph (`StateGraph`) with structured JSON routing and autonomous specialist execution. |
 | **RAG Engine** | ChromaDB, Regex Chunking | `/shared/rag.py` | Markdown chunking, vector embeddings, similarity search, and high-resilience fallback search. |
-| **Database** | PostgreSQL 16 (`psycopg3`) | `/shared/db.py` | Relational persistence for tasks, check-ins, equipment requests, trainings, employee assignments, and audit logs. |
+| **Database** | PostgreSQL 16 (`psycopg3`) | `/shared/db.py` | Relational persistence for users, tasks, check-ins, equipment requests, trainings, employee assignments, and audit logs. |
 | **MCP Server** | FastMCP Protocol | `/mcp-server/server.py` | Exposes all onboarding tools over standard input/output for external AI coding tools (e.g., Cursor, Claude Desktop). |
 
 ---
 
-## 3. The 4 Priority Enhancements Implemented
+## 3. Architecture & Security Improvements
 
-### Task 1: Additional Employee Onboarding Automation
-- **Equipment Provisioning**: Added `equipment_allocations` table and tools (`get_equipment_status_tool`, `request_equipment_tool`). Supports laptops, badges, monitors, keyboards, headsets, and desk accessories.
+### Task 1: Real Employee Authentication & Server-Side Authorization (IDOR Prevention)
+- **PBKDF2 Password Hashing**: Passwords stored using salted PBKDF2-HMAC-SHA256 (100,000 iterations) using Python standard library without unsafe external dependencies.
+- **Tamper-Proof Session Tokens**: HMAC-SHA256 signed bearer tokens with expiration timestamps (`sub`, `role`, `iat`, `exp`).
+- **Server-Side Authorization**: `require_employee_access()` strictly ensures that authenticated employees can only query or modify their own onboarding tasks, equipment, trainings, or check-ins. Cross-employee snooping or modification (IDOR) immediately returns `403 Forbidden`.
+- **Role-Based Access Control (RBAC)**: Administrator endpoints (`/api/admin/*`, reset, equipment approval) require `role: admin` or valid `X-Admin-Key`.
+
+### Task 2: Additional Employee Onboarding Automation & Sensitive Action Approvals
+- **Equipment Provisioning & IT Approval**: Added `equipment_allocations` table and tools (`get_equipment_status_tool`, `request_equipment_tool`). Equipment requests default to `'pending'` status, requiring IT Admin review via `POST /api/admin/equipment/{id}/status` before moving to `'allocated'` or `'delivered'`.
 - **Compliance Training Management**: Implemented `training_assignments` table with 6 built-in courses (Security Awareness, Code of Conduct, GDPR, IT Security, Benefits, Safety) with automatic onboarding assignment via `list_training_assignments_tool` and `assign_training_tool`.
 - **Manager & Buddy Tracking**: Automated tracking of direct managers and onboarding buddies via `shared/assignments.py`.
 - **Full Task Lifecycle**: Added progress tracking (`get_onboarding_status_tool`) and marking tasks complete (`complete_onboarding_task_tool`).
 
-### Task 2: Security & Governance Improvements
-- **Admin Authentication**: Enforced `X-Admin-Key` header authentication on `/api/admin/*` and reset endpoints.
-- **Sliding-Window Rate Limiting**: In-memory rate limiter restricting clients to 20 chat requests/minute per IP.
-- **Input Validation**: Strict alphanumeric regex enforcement (`^[a-zA-Z0-9_-]{1,100}$`) on employee IDs.
-- **Audit Logging**: Created `audit_logs` table recording all administrative deletions, completions, and schedule modifications.
-- **10-Layer Prompt-Injection Defense**: Full regex scanning, safe fallbacks, output hijacking detection, and write-tool blocking during suspected attacks.
+### Task 3: Simulated vs Real External Integrations
+To maintain zero-dependency local demonstrability without requiring external enterprise subscriptions, external enterprise services are cleanly architected as database-backed simulated integrations:
+- **IT Hardware Procurement**: Simulated via `equipment_allocations` table and approval lifecycle (ready for plug-and-play webhook integration with ServiceNow / Jira Service Management).
+- **Learning Management System (LMS)**: Simulated via `training_assignments` table (ready for SCORM / Workday Learning API connectors).
+- **Human Resources Information System (HRIS)**: Simulated via `employee_assignments` table (ready for BambooHR / Workday REST sync).
 
-### Task 3: Fix of the Six Baseline Evaluation Failures
+### Task 4: Fix of the Six Baseline Evaluation Failures
 1. **`slack_channels`**: Orchestrator prompt re-routed to search `it-setup.md` for official channels (`#general`, `#team-*`, `#random`).
 2. **`schedule_checkin`**: Disambiguated `schedule_checkin_tool` docstrings and added orchestrator rules prioritizing check-in booking over task creation.
 3. **`headquarters_location`**: Enriched office location search triggers, ensuring retrieval of the Helsinki headquarters from `employee-handbook.md`.
@@ -89,7 +95,7 @@ flowchart TD
 5. **`remote_policy_and_first_week`**: Mandated creation of $\ge 3$ tasks when employees query first-week plans.
 6. **`onboarding_buddy`**: Explicitly separated buddy meeting timing (retrieved from `onboarding-checklist.md`) from contact lookups.
 
-### Task 4: Location-Specific Intelligence
+### Task 5: Location-Specific Intelligence
 - **India (`seed-data/location-india.md`)**: National holidays (Republic Day, Independence Day, Gandhi Jayanti, Diwali), statutory benefits (EPF 12%, ESIC, Gratuity, Professional Tax), leave rules (EL/SL/CL/Maternity/Paternity), and onboarding compliance (PAN, Aadhaar, Form 2).
 - **USA (`seed-data/location-usa.md`)**: Federal holidays, 401(k) matching (4% match, 4-year vesting), PPO healthcare/HSA plans, and mandatory I-9 compliance within 3 business days.
 - **RAG Integration**: Created `search_handbook_with_location()` to prioritize location-matched metadata.
@@ -154,7 +160,16 @@ CREATE TABLE IF NOT EXISTS employee_assignments (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 6. System Audit Logs Table
+-- 6. System Users & Credentials Table
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'employee', -- 'employee' or 'admin'
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 7. System Audit Logs Table
 CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
     action TEXT NOT NULL,
@@ -176,18 +191,21 @@ Interactive Swagger documentation is available at `http://localhost:8000/docs`. 
 | Method | Endpoint | Auth | Purpose |
 |---|---|---|---|
 | `GET` | `/health` | None | Service liveness probe. |
-| `POST` | `/api/chat` | None | Synchronous conversation endpoint. |
-| `POST` | `/api/chat/stream` | None | Real-time Server-Sent Events (SSE) streaming chat. |
+| `POST` | `/api/auth/login` | None | Authenticates user/admin and issues signed bearer session token. |
+| `GET` | `/api/auth/me` | Bearer Token | Returns claims (`sub`, `role`) of the authenticated user. |
+| `POST` | `/api/chat` | Optional Token | Synchronous conversation endpoint (authorized for matching employee). |
+| `POST` | `/api/chat/stream` | Optional Token | Real-time Server-Sent Events (SSE) streaming chat. |
 | `GET` | `/api/employee/demo` | None | Returns active user profile (name, role, location, manager). |
-| `GET` | `/api/onboarding/{id}/status` | None | Summary of task completion count and percentage. |
-| `POST` | `/api/onboarding/{id}/tasks/{taskId}/complete` | None | Marks an onboarding checklist task complete. |
-| `GET` | `/api/onboarding/{id}/equipment` | None | Retrieves all equipment allocated to an employee. |
-| `POST` | `/api/onboarding/{id}/equipment/request` | None | Submits a hardware request. |
-| `GET` | `/api/onboarding/{id}/trainings` | None | Returns mandatory courses and completion statuses. |
-| `POST` | `/api/onboarding/{id}/trainings/{id}/complete`| None | Marks a training course complete. |
-| `GET` | `/api/admin/checkins` | `X-Admin-Key` | Lists all scheduled employee check-ins. |
-| `GET` | `/api/admin/audit-logs` | `X-Admin-Key` | Views chronological administrative audit trail. |
-| `POST` | `/api/onboarding/{id}/reset` | `X-Admin-Key` | Clears all data for an employee (eval cleanups). |
+| `GET` | `/api/onboarding/{id}/status` | Employee / Admin | Summary of task completion count and percentage (IDOR-protected). |
+| `POST` | `/api/onboarding/{id}/tasks/{taskId}/complete` | Employee / Admin | Marks an onboarding checklist task complete. |
+| `GET` | `/api/onboarding/{id}/equipment` | Employee / Admin | Retrieves all equipment allocated to an employee. |
+| `POST` | `/api/onboarding/{id}/equipment/request` | Employee / Admin | Submits a hardware request (status: `pending`). |
+| `POST` | `/api/admin/equipment/{id}/status` | Admin (`X-Admin-Key` / Admin Role) | IT Admin approves/delivers hardware requests. |
+| `GET` | `/api/onboarding/{id}/trainings` | Employee / Admin | Returns mandatory courses and completion statuses. |
+| `POST` | `/api/onboarding/{id}/trainings/{id}/complete`| Employee / Admin | Marks a training course complete. |
+| `GET` | `/api/admin/checkins` | Admin (`X-Admin-Key` / Admin Role) | Lists all scheduled employee check-ins. |
+| `GET` | `/api/admin/audit-logs` | Admin (`X-Admin-Key` / Admin Role) | Views chronological administrative audit trail. |
+| `POST` | `/api/onboarding/{id}/reset` | Admin (`X-Admin-Key` / Admin Role) | Clears all data for an employee (eval cleanups). |
 | `GET` | `/api/evals/results` | None | Returns golden evaluation and DeepEval metrics. |
 
 ---
@@ -196,23 +214,24 @@ Interactive Swagger documentation is available at `http://localhost:8000/docs`. 
 
 The project includes an automated test framework:
 
-### 1. Fast Unit & Business Logic Test Suite
+### 1. Fast Unit & Security Test Suite
 Located in `tests/test_improvements.py`. Runs in under 3 seconds with zero external dependencies:
 ```powershell
 python tests/test_improvements.py
 ```
-*Coverage*: Injection detection, rate limiting, training schedules, equipment models, assignment profiles, Markdown chunking, prompt syntax, and tool definitions.
+*Coverage*: 15 comprehensive suites covering PBKDF2 password hashing, signed tamper-proof session tokens, employee IDOR authorization, admin access restrictions, tool argument validation, equipment status workflows, prompt injection defenses, rate limiting, training schedules, assignment profiles, Markdown chunking, prompt syntax, and structured audit logging.
 
-### 2. Golden Evaluation Harness
-Located in `evals/scenarios.yaml` and `evals/run_evals.py`.
-- **Scenarios**: 32 end-to-end golden scenarios (covering retrieval, citations, check-ins, tasks, prompt injections, and location intelligence).
-- **Run Command**:
-  ```powershell
-  docker compose --profile evals run --rm --build evals
-  ```
-- **Evaluation Score**:
-  - **Before**: 22 / 28 passed (78.6%)
-  - **After**: **32 / 32 passed (100%)**
+### 2. Evaluation Scenarios (28 Baseline vs 32 Multi-Region)
+Located in `evals/scenarios.yaml` and `evals/run_evals.py`:
+- **Baseline Suite (28 Scenarios)**: Evaluates core handbook RAG retrieval, proactive 30-day task generation, check-in scheduling, and prompt injection defense.
+- **Extended Multi-Region Suite (32 Scenarios)**: Adds 4 verified location-specific compliance and benefits scenarios:
+  1. `india_public_holidays`: Republic Day, Independence Day, Gandhi Jayanti, Diwali.
+  2. `india_statutory_benefits`: Provident Fund (12%), Gratuity Act, ESIC, Professional Tax.
+  3. `usa_health_and_retirement`: 401(k) matching (4%, 4-year vesting), HSA health plans.
+  4. `usa_i9_verification`: Form I-9 employment eligibility verification within 3 business days.
+- **Evaluation Pass Rate**:
+  - **Baseline (initial)**: 22 / 28 passed (78.6%)
+  - **After Full Implementation**: **32 / 32 passed (100%)** verified across all scenarios.
 
 ---
 

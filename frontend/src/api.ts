@@ -110,8 +110,69 @@ export interface EvalReportBundle {
   deepeval: EvalSuiteReport;
 }
 
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem('onboardai_token');
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token: string | null): void {
+  try {
+    if (token) {
+      localStorage.setItem('onboardai_token', token);
+    } else {
+      localStorage.removeItem('onboardai_token');
+    }
+  } catch {
+    // Ignore storage errors in restricted contexts
+  }
+}
+
+function authHeaders(custom: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { ...custom };
+  const token = getAuthToken();
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+export async function loginUser(
+  username: string,
+  password: string,
+): Promise<{ access_token: string; user_id: string; role: string }> {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  setAuthToken(data.access_token);
+  return data;
+}
+
+export async function fetchCurrentUser(): Promise<{ sub: string; role: string } | null> {
+  const token = getAuthToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      setAuthToken(null);
+      return null;
+    }
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchEvalResults(): Promise<EvalReportBundle> {
-  const res = await fetch(`${API_BASE}/api/evals/results`);
+  const res = await fetch(`${API_BASE}/api/evals/results`, { headers: authHeaders() });
   if (!res.ok) {
     const text = await res.text();
     if (res.status === 404) {
@@ -125,19 +186,19 @@ export async function fetchEvalResults(): Promise<EvalReportBundle> {
 }
 
 export async function fetchDemoEmployee(): Promise<DemoEmployee> {
-  const res = await fetch(`${API_BASE}/api/employee/demo`);
+  const res = await fetch(`${API_BASE}/api/employee/demo`, { headers: authHeaders() });
   return res.json();
 }
 
 export async function fetchOnboardingStatus(employeeId: string): Promise<OnboardingStatus> {
-  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/status`);
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/status`, { headers: authHeaders() });
   return res.json();
 }
 
 export async function completeTask(employeeId: string, taskId: number): Promise<void> {
   await fetch(`${API_BASE}/api/onboarding/${employeeId}/tasks/${taskId}/complete`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ employee_id: employeeId }),
   });
 }
@@ -145,11 +206,11 @@ export async function completeTask(employeeId: string, taskId: number): Promise<
 export async function resetOnboarding(employeeId: string, adminKey?: string): Promise<void> {
   const headers: Record<string, string> = {};
   if (adminKey) headers['X-Admin-Key'] = adminKey;
-  await fetch(`${API_BASE}/api/onboarding/${employeeId}/reset`, { method: 'POST', headers });
+  await fetch(`${API_BASE}/api/onboarding/${employeeId}/reset`, { method: 'POST', headers: authHeaders(headers) });
 }
 
 export async function fetchEquipment(employeeId: string): Promise<EquipmentItem[]> {
-  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/equipment`);
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/equipment`, { headers: authHeaders() });
   if (!res.ok) return [];
   const data = await res.json();
   return data.equipment || [];
@@ -162,7 +223,7 @@ export async function requestEquipment(
 ): Promise<{ message: string }> {
   const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/equipment/request`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ item_type: itemType, item_name: itemName }),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -170,7 +231,7 @@ export async function requestEquipment(
 }
 
 export async function fetchTrainings(employeeId: string): Promise<TrainingAssignment[]> {
-  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/trainings`);
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/trainings`, { headers: authHeaders() });
   if (!res.ok) return [];
   const data = await res.json();
   return data.trainings || [];
@@ -179,11 +240,12 @@ export async function fetchTrainings(employeeId: string): Promise<TrainingAssign
 export async function completeTraining(employeeId: string, trainingId: number): Promise<void> {
   await fetch(`${API_BASE}/api/onboarding/${employeeId}/trainings/${trainingId}/complete`, {
     method: 'POST',
+    headers: authHeaders(),
   });
 }
 
 export async function fetchAssignments(employeeId: string): Promise<EmployeeAssignment> {
-  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/assignments`);
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/assignments`, { headers: authHeaders() });
   return res.json();
 }
 
@@ -191,7 +253,7 @@ export async function fetchCheckins(employeeId?: string, adminKey?: string): Pro
   const params = employeeId ? `?employee_id=${encodeURIComponent(employeeId)}` : '';
   const headers: Record<string, string> = {};
   if (adminKey) headers['X-Admin-Key'] = adminKey;
-  const res = await fetch(`${API_BASE}/api/admin/checkins${params}`, { headers });
+  const res = await fetch(`${API_BASE}/api/admin/checkins${params}`, { headers: authHeaders(headers) });
   if (!res.ok) throw new Error('Failed to fetch check-ins');
   const data = await res.json();
   return data.checkins;
@@ -204,7 +266,7 @@ export async function sendChat(
 ): Promise<{ response: string; tool_calls: { name: string }[]; citations: string[] }> {
   const res = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       message,
       employee_id: employeeId,
@@ -223,7 +285,7 @@ export async function streamChat(
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/api/chat/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       message,
       employee_id: employeeId,

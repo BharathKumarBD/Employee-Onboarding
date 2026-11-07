@@ -90,6 +90,11 @@ INJECTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"do\s+not\s+follow\s+(your\s+)?instructions", re.I),
     re.compile(r"<\s*/?\s*system\s*>", re.I),
     re.compile(r"###\s*system", re.I),
+    re.compile(r"system\s*:\s*", re.I),
+    re.compile(r"administrator\s+override", re.I),
+    re.compile(r"developer\s+mode", re.I),
+    re.compile(r"jailbreak", re.I),
+    re.compile(r"bypass\s+(all\s+)?(rules|safety|guardrails)", re.I),
 ]
 
 HIJACKED_PHRASES: list[str] = [

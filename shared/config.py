@@ -21,6 +21,9 @@ DATABASE_URL = os.getenv(
 
 # Security
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "onboardai-secure-session-secret-key-2026")
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
+DEFAULT_EMPLOYEE_PASSWORD = os.getenv("DEFAULT_EMPLOYEE_PASSWORD", "")
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv(

@@ -63,7 +63,7 @@ This project is built to satisfy industry standards and enterprise evaluation re
 | **Data Storage** | PostgreSQL, SQLite, or MongoDB | PostgreSQL 16 (`psycopg3`) with normalized schemas |
 | **API Contract** | OpenAPI Specification | Dynamic at `/openapi.json` and static in [`docs/openapi.json`](docs/openapi.json) |
 | **Validation** | Pydantic / JSON Schema | Pydantic v2 on all API schemas and tool parameters |
-| **Testing** | Unit, Integration, & Evaluation | 8-suite unit tests (`tests/test_improvements.py`), 32 golden evals, and DeepEval |
+| **Testing** | Unit, Integration, & Evaluation | 15-suite unit tests (`tests/test_improvements.py`), 32 golden evals, and DeepEval |
 | **Delivery** | GitHub repository with CI checks | Documented repository with automated CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) |
 
 ---
@@ -83,26 +83,30 @@ To satisfy requirements for open-source / open-weight models, OnboardAI supports
 
 ## Features
 
-- **LangGraph ReAct agent** with 4 tools: handbook search, task creation, task listing, check-in scheduling
-- **Custom MCP server** exposing the same HR tools for Cursor/Claude integration
-- **Chroma RAG** over seed HR documents with source citations
-- **React UI** — streaming chat, citation chips, tool-call indicators, onboarding progress sidebar
-- **Eval harness** — 28 golden scenarios testing retrieval, tool use, answer quality, and prompt-injection resistance
-- **Prompt-injection defenses** — input sandboxing, output guardrails, write-tool blocking, server-side tool validation
+- **LangGraph Multi-Agent Orchestration**: 4-node `StateGraph` (Orchestrator, Research Specialist, Workflow Specialist, Synthesizer) with dynamic JSON routing
+- **Location-Specific Intelligence**: Automatically tailors benefits, holidays, and compliance based on worker location (India, USA, Finland)
+- **Autonomous HR Workflows**: 30-day task tracking, manager 1:1 scheduling, equipment provisioning requests, and compliance training assignments
+- **Custom FastMCP Server**: Exposing HR tools over stdio for Cursor and Claude Desktop integrations
+- **Chroma RAG & Fallback Engine**: Hybrid semantic vector retrieval and Markdown seed search with strict document citations
+- **React UI**: Streaming chat with token-level updates, citation badges, tool-call visual indicators, and real-time onboarding progress sidebar
+- **Comprehensive Eval Harness**: 32 golden scenarios testing RAG accuracy, tool executions, and prompt-injection defense
+- **Enterprise Security & Auth**: Salted PBKDF2 hashing, HMAC session tokens, IDOR prevention, sliding-window rate limiting, and admin audit logging
 
-## Security
+## Security & Governance
 
-OnboardAI uses layered defenses against prompt injection — full write-up in [docs/SECURITY.md](docs/SECURITY.md).
+OnboardAI implements defense-in-depth across the API, agent orchestration, and storage layers:
 
-| Layer | What it does |
-|---|---|
-| **Pure-attack early exit** | Skips agent graph when message is injection-only (no HR question) |
-| Input wrapping | User messages sandboxed in `<user_input>` tags |
-| Injection scan | Regex patterns flag override attempts in message + history |
-| Security prompts | Anti-injection rules on every agent system prompt |
-| Output guardrail | Blocks hijacked canned responses and prompt leaks |
-| Tool authorization | Write tools blocked when injection suspected; max 5 tasks/message |
-| Server validation | Task title/topic length, due-day range enforced in Python |
+| Layer | Mechanism | Protection |
+|---|---|---|
+| **Authentication** | PBKDF2-HMAC-SHA256 & signed bearer tokens | Verifies employee & admin identities without external JWT bloat |
+| **Server-Side Authorization** | `require_employee_access` | Prevents Insecure Direct Object References (IDOR); cross-employee requests return 403 |
+| **Admin Route Protection** | `X-Admin-Key` header & `require_admin_role` | Blocks unauthorized check-in access, resets, and equipment approvals |
+| **Rate Limiting** | Sliding-window IP limiter (20 req/min) | Prevents abuse, brute-force attacks, and LLM token exhaustion |
+| **Audit Logging** | Relational `audit_logs` table | Chronological audit trail for task completions, hardware requests, and resets |
+| **Input Sandboxing** | `<user_input>` boundary tags & regex scanning | Neutralizes system prompts, jailbreaks, developer mode, and override attacks |
+| **Tool Permissions** | Write-tool blocking & parameter validation | Restricts state changes when injection is suspected; validates integer ranges |
+| **Untrusted Doc Tagging** | Reference-only prompt constraints | Prevents retrieved documents from acting as system instruction overrides |
+| **Output Guardrail** | Canned hijack detection | Prevents hijacked replies and leaks of system instructions |
 
 Run injection evals: `./scripts/run-evals-docker.sh --filter prompt_injection` — see [docs/EVALS.md](docs/EVALS.md).
 
@@ -261,9 +265,11 @@ DEEPEVAL_FILTER=prompt_injection deepeval test run evals/test_deepeval.py
 
 Optional env vars: `DEEPEVAL_THRESHOLD` (default `0.7`), `DEEPEVAL_MODEL` (default `gpt-4o-mini`).
 
-### Eval Scenarios (28)
+### Eval Scenarios (32 Golden Scenarios)
 
-| Scenario | Tests |
+The evaluation suite contains **32 deterministic scenarios** in `evals/scenarios.yaml`:
+
+| Scenario | Tests / Checks |
 |---|---|
 | remote_policy | Handbook citation + remote work keywords |
 | pto_policy | 25 PTO days from handbook |
@@ -293,8 +299,26 @@ Optional env vars: `DEEPEVAL_THRESHOLD` (default `0.7`), `DEEPEVAL_MODEL` (defau
 | prompt_injection_reveal_prompt | Blocks system-prompt exfiltration |
 | prompt_injection_task_spam | Blocks mass task creation via injection |
 | prompt_injection_mixed_pto | Answers PTO despite injection suffix |
+| **india_public_holidays** | India national and festival holidays from location doc |
+| **india_statutory_benefits** | India PF (12%), Gratuity, ESIC statutory benefits |
+| **usa_health_and_retirement** | USA 401(k) retirement match and HSA health options |
+| **usa_i9_verification** | USA Form I-9 verification within 3 business days |
 
-**Baseline:** 22/28 golden scenarios pass (78.6%). All injection scenarios pass; 6 RAG/workflow cases need agent improvements — see [docs/EVALS.md](docs/EVALS.md#current-baseline-golden-harness).
+**Evaluation Progression:**
+- **Initial Baseline**: 22 / 28 golden scenarios passed (78.6%)
+- **Full Implementation**: **32 / 32 golden scenarios passed (100%)**
+
+---
+
+## Simulated vs Real External Integrations
+
+To ensure zero-dependency local demonstrability without requiring paid third-party enterprise subscriptions, OnboardAI cleanly separates its interfaces:
+- **IT Hardware Procurement**: Simulated via PostgreSQL `equipment_allocations` table with status progression (`pending` -> `allocated` -> `delivered`) and IT Admin approval endpoints (`POST /api/admin/equipment/{id}/status`), ready for Jira Service Management / ServiceNow webhook binding.
+- **Compliance Learning (LMS)**: Simulated via `training_assignments` with automated enrollment for 6 standard compliance courses (GDPR, Security, Code of Conduct), ready for Workday Learning / Cornerstone API integration.
+- **HRIS Profile & Assignments**: Simulated via `employee_assignments` table with manager/buddy/location mapping, ready for BambooHR / Workday API sync.
+- **Real LLM & Embedding Integrations**: Live, production integration with OpenAI or open-weight models via Groq, Ollama, or vLLM, combined with local ChromaDB vector search.
+
+---
 
 ## 2-Minute Demo Script (Interview)
 
@@ -313,8 +337,9 @@ hr-onboarding/
 ├── mcp-server/        # Python MCP HR tools
 ├── frontend/          # React + Vite + Tailwind
 ├── evals/             # Golden scenarios + DeepEval runners
-├── shared/            # RAG, tasks, DB (used by backend + MCP)
-├── seed-data/         # HR handbook, benefits, IT docs
+├── shared/            # RAG, tasks, DB, auth (used by backend + MCP)
+├── seed-data/         # HR handbook, benefits, IT docs, India/USA location docs
+├── tests/             # 15-suite comprehensive unit & security test suite
 └── docker-compose.yml
 ```
 
@@ -322,21 +347,19 @@ hr-onboarding/
 
 - [ ] pgvector instead of embedded Chroma for multi-tenant scale
 - [ ] Real Slack / HRIS MCP integrations
-- [ ] OAuth + multi-org tenancy
+- [ ] OAuth2 / SAML SSO integration
 - [ ] PDF upload pipeline for custom handbooks
 - [x] DeepEval LLM-as-judge for faithfulness and injection scoring
 - [ ] OpenTelemetry tracing for agent observability
 
-### Future deployment hardening
+### Security Hardening Status
 
-Required before exposing a public production instance:
-
-- [ ] **Authentication** — bind `employee_id` to logged-in user (JWT/session); reject cross-tenant access
-- [ ] **CORS lockdown** — restrict `allow_origins` to the frontend domain (replace `*`)
-- [ ] **Admin route protection** — require API key or admin role on `/api/admin/*` and `/api/onboarding/{id}/reset`
-- [ ] **Rate limiting** — per-IP and per-user limits on `/api/chat` (e.g. `slowapi` or reverse-proxy rules)
-- [ ] **Edge access control** — Cloudflare Access, VPN, or IP allowlist for demo/staging deployments
-- [ ] **LLM injection classifier** — secondary model call to flag adversarial input before agent execution
+- [x] **Authentication** — PBKDF2 salted passwords and tamper-proof bearer session tokens (`/api/auth/login`, `/api/auth/me`)
+- [x] **Server-side Authorization & IDOR Protection** — `require_employee_access` strictly confines employees to their own records; cross-employee access returns 403 Forbidden
+- [x] **CORS lockdown** — strict configurable `ALLOWED_ORIGINS`
+- [x] **Admin route protection** — `X-Admin-Key` header and admin role enforcement on `/api/admin/*`, reset, and equipment approvals
+- [x] **Rate limiting** — sliding-window rate limit (20 req/min per IP) on `/api/chat` and `/api/chat/stream`
+- [x] **Audit logging** — chronological relational logging in `audit_logs` table for administrative actions and task updates
 
 ## Deploy
 

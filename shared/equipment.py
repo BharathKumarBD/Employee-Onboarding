@@ -61,3 +61,30 @@ def request_equipment(employee_id: str, item_type: str, item_name: str) -> dict[
         "status": "pending",
         "message": f"Equipment request submitted: {item_name} ({item_type}). IT will process this request.",
     }
+
+
+def update_equipment_status(equipment_id: int, status: str = "allocated") -> dict[str, Any] | None:
+    """Update equipment request status (e.g. IT admin approval: pending -> allocated/delivered)."""
+    ensure_db()
+    status = status.lower().strip()
+    if status not in VALID_STATUSES:
+        raise ValueError(f"Invalid status '{status}'. Must be one of: {VALID_STATUSES}")
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE equipment_allocations
+                SET status = %s,
+                    allocated_at = CASE WHEN %s IN ('allocated', 'delivered') THEN %s ELSE allocated_at END
+                WHERE id = %s
+                RETURNING id, employee_id, item_type, item_name, status, allocated_at, created_at
+                """,
+                (status, status, _now_iso(), equipment_id),
+            )
+            row = cur.fetchone()
+            conn.commit()
+            if not row:
+                return None
+            return dict(row)
+

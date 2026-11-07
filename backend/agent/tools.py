@@ -35,10 +35,13 @@ def build_research_tools():
         for policy and onboarding information. Use this for: Slack channels, office locations, headquarters, 
         IT helpdesk contacts, remote work policy, benefits, PTO, onboarding buddy timing or schedule, location-specific policies (holidays, statutory benefits, leave),
         and any factual HR or IT question."""
-        if location:
-            results = search_handbook_with_location(query, location)
+        # Sanitize query input
+        query_clean = str(query).strip()[:500]
+        loc_clean = str(location).strip()[:50] if location else None
+        if loc_clean:
+            results = search_handbook_with_location(query_clean, loc_clean)
         else:
-            results = search_handbook(query)
+            results = search_handbook(query_clean)
         return format_search_results(results)
 
     return [search_handbook_tool]
@@ -58,8 +61,15 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
             return WRITE_BLOCKED_MSG
         if tasks_created >= MAX_TASKS_PER_REQUEST:
             return f"Task limit reached ({MAX_TASKS_PER_REQUEST} per message)."
+        # Validate LLM arguments strictly
         try:
-            task = create_onboarding_task(employee_id, title, due_day, category)
+            due_day_int = int(due_day)
+        except (ValueError, TypeError):
+            return "Invalid due_day: must be an integer between 1 and 90."
+        clean_title = str(title).strip()
+        clean_cat = str(category).strip()
+        try:
+            task = create_onboarding_task(employee_id, clean_title, due_day_int, clean_cat)
         except ValueError as exc:
             return f"Invalid task: {exc}"
         tasks_created += 1
@@ -96,7 +106,12 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         if injection_suspected:
             return WRITE_BLOCKED_MSG
         try:
-            result = schedule_checkin(employee_id, day, topic)
+            day_int = int(day)
+        except (ValueError, TypeError):
+            return "Invalid day: must be an integer between 1 and 90."
+        clean_topic = str(topic).strip()
+        try:
+            result = schedule_checkin(employee_id, day_int, clean_topic)
         except ValueError as exc:
             return f"Invalid check-in: {exc}"
         return json.dumps(result, default=str)
@@ -142,7 +157,12 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         if injection_suspected:
             return WRITE_BLOCKED_MSG
         try:
-            result = assign_training(employee_id, training_name, due_day)
+            due_day_int = int(due_day)
+        except (ValueError, TypeError):
+            return "Invalid due_day: must be an integer between 1 and 90."
+        clean_name = str(training_name).strip()
+        try:
+            result = assign_training(employee_id, clean_name, due_day_int)
             return json.dumps(result, default=str)
         except ValueError as exc:
             return f"Invalid training assignment: {exc}"
