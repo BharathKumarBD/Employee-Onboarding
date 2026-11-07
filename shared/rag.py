@@ -7,7 +7,7 @@ from pathlib import Path
 import chromadb
 from chromadb.utils import embedding_functions
 
-from shared.config import CHROMA_PATH, OPENAI_API_KEY, SEED_DATA_DIR
+from shared.config import CHROMA_PATH, EMBEDDING_MODEL, LLM_BASE_URL, OPENAI_API_KEY, SEED_DATA_DIR
 
 COLLECTION_NAME = "hr_handbook"
 _indexed = False
@@ -35,11 +35,16 @@ def _chunk_markdown(text: str, source: str, chunk_size: int = 500) -> list[dict]
 
 
 def _embedding_function():
-    if OPENAI_API_KEY:
-        return embedding_functions.OpenAIEmbeddingFunction(
-            api_key=OPENAI_API_KEY,
-            model_name="text-embedding-3-small",
-        )
+    # Groq does NOT provide an embedding endpoint (only chat completions).
+    # If using Groq (LLM_BASE_URL contains groq), or if no OpenAI key, use Chroma's built-in DefaultEmbeddingFunction.
+    if OPENAI_API_KEY and not (LLM_BASE_URL and "groq.com" in LLM_BASE_URL):
+        kwargs: dict[str, Any] = {
+            "api_key": OPENAI_API_KEY,
+            "model_name": EMBEDDING_MODEL,
+        }
+        if LLM_BASE_URL:
+            kwargs["api_base"] = LLM_BASE_URL
+        return embedding_functions.OpenAIEmbeddingFunction(**kwargs)
     return embedding_functions.DefaultEmbeddingFunction()
 
 
@@ -91,27 +96,52 @@ def ensure_index() -> None:
 
 
 def search_handbook(query: str, top_k: int = 3) -> list[SearchResult]:
-    ensure_index()
-    collection = _get_collection()
-    results = collection.query(query_texts=[query], n_results=top_k)
+    try:
+        ensure_index()
+        collection = _get_collection()
+        results = collection.query(query_texts=[query], n_results=top_k)
 
-    search_results: list[SearchResult] = []
-    if not results["documents"] or not results["documents"][0]:
-        return search_results
+        search_results: list[SearchResult] = []
+        if not results["documents"] or not results["documents"][0]:
+            return search_results
 
-    for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
-    ):
-        search_results.append(
-            SearchResult(
-                content=doc,
-                source=meta.get("source", "unknown"),
-                score=1.0 - dist if dist is not None else 0.0,
+        for doc, meta, dist in zip(
+            results["documents"][0],
+            results["metadatas"][0],
+            results["distances"][0],
+        ):
+            search_results.append(
+                SearchResult(
+                    content=doc,
+                    source=meta.get("source", "unknown"),
+                    score=1.0 - dist if dist is not None else 0.0,
+                )
             )
-        )
-    return search_results
+        return search_results
+    except Exception as e:
+        # Fallback to direct keyword/text search over seed files if vector store hangs or fails
+        return _fallback_keyword_search(query, top_k)
+
+
+def _fallback_keyword_search(query: str, top_k: int = 3) -> list[SearchResult]:
+    terms = [w.lower() for w in re.findall(r"\w+", query) if len(w) > 2]
+    all_chunks: list[dict] = []
+    for path in sorted(SEED_DATA_DIR.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        all_chunks.extend(_chunk_markdown(text, path.name))
+
+    scored = []
+    for c in all_chunks:
+        content_lower = c["content"].lower()
+        score = sum(1 for t in terms if t in content_lower)
+        if score > 0:
+            scored.append((score, c))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [
+        SearchResult(content=c["content"], source=c["source"], score=float(score))
+        for score, c in scored[:top_k]
+    ]
 
 
 def format_search_results(results: list[SearchResult]) -> str:
@@ -126,10 +156,6 @@ def format_search_results(results: list[SearchResult]) -> str:
 
 def search_handbook_with_location(query: str, location: str | None = None, top_k: int = 4) -> list[SearchResult]:
     """Search handbook with location-aware filtering. Returns location-specific results first."""
-    ensure_index()
-    collection = _get_collection()
-
-    # Build a location-enriched query for better retrieval
     location_map = {
         "india": "India",
         "usa": "United States USA America",
@@ -144,25 +170,30 @@ def search_handbook_with_location(query: str, location: str | None = None, top_k
         if location_lower in location_map:
             enriched_query = f"{query} {location_map[location_lower]}"
 
-    results = collection.query(query_texts=[enriched_query], n_results=min(top_k, collection.count() or top_k))
+    try:
+        ensure_index()
+        collection = _get_collection()
+        results = collection.query(query_texts=[enriched_query], n_results=min(top_k, collection.count() or top_k))
 
-    search_results: list[SearchResult] = []
-    if not results["documents"] or not results["documents"][0]:
-        return search_results
+        search_results: list[SearchResult] = []
+        if not results["documents"] or not results["documents"][0]:
+            return search_results
 
-    for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
-    ):
-        search_results.append(
-            SearchResult(
-                content=doc,
-                source=meta.get("source", "unknown"),
-                score=1.0 - dist if dist is not None else 0.0,
+        for doc, meta, dist in zip(
+            results["documents"][0],
+            results["metadatas"][0],
+            results["distances"][0],
+        ):
+            search_results.append(
+                SearchResult(
+                    content=doc,
+                    source=meta.get("source", "unknown"),
+                    score=1.0 - dist if dist is not None else 0.0,
+                )
             )
-        )
-    return search_results
+        return search_results
+    except Exception:
+        return _fallback_keyword_search(enriched_query, top_k)
 
 
 def reindex_all() -> None:

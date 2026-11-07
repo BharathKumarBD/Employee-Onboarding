@@ -16,14 +16,16 @@ export default function CheckinsAdmin() {
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [appliedFilter, setAppliedFilter] = useState<string | undefined>();
+  const [adminKey, setAdminKey] = useState(() => localStorage.getItem('onboardai_admin_key') || '');
+  const [showAdminKey, setShowAdminKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadCheckins = useCallback(async (filter?: string) => {
+  const loadCheckins = useCallback(async (filter?: string, key?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchCheckins(filter);
+      const data = await fetchCheckins(filter, key || undefined);
       setCheckins(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load check-ins');
@@ -33,15 +35,18 @@ export default function CheckinsAdmin() {
   }, []);
 
   useEffect(() => {
-    loadCheckins(appliedFilter);
-  }, [appliedFilter, loadCheckins]);
+    loadCheckins(appliedFilter, adminKey);
+  }, [appliedFilter, adminKey, loadCheckins]);
 
   const handleRefresh = () => {
     const filter = employeeFilter.trim() || undefined;
     setAppliedFilter(filter);
-    if (filter === appliedFilter) {
-      loadCheckins(filter);
+    if (adminKey) {
+      localStorage.setItem('onboardai_admin_key', adminKey);
+    } else {
+      localStorage.removeItem('onboardai_admin_key');
     }
+    loadCheckins(filter, adminKey);
   };
 
   return (
@@ -86,6 +91,28 @@ export default function CheckinsAdmin() {
           >
             {loading ? 'Loading…' : 'Refresh'}
           </button>
+          <button
+            type="button"
+            onClick={() => setShowAdminKey((prev) => !prev)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-500 hover:bg-slate-100"
+          >
+            {showAdminKey ? 'Hide Admin Key' : '🔑 Admin Key'}
+          </button>
+          {showAdminKey && (
+            <div>
+              <label htmlFor="admin-key" className="mb-1 block text-xs font-medium text-slate-500">
+                X-Admin-Key (optional in dev)
+              </label>
+              <input
+                id="admin-key"
+                type="password"
+                value={adminKey}
+                onChange={(e) => setAdminKey(e.target.value)}
+                placeholder="Admin API key"
+                className="w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          )}
           <p className="text-sm text-slate-500">
             {checkins.length} check-in{checkins.length === 1 ? '' : 's'}
           </p>
