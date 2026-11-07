@@ -1379,7 +1379,7 @@ export default function ChatPage() {
             Evals Suite (36)
           </Link>
           <Link
-            to="/dashboard"
+            to={employee ? `/dashboard?employeeId=${encodeURIComponent(employee.id)}` : '/dashboard'}
             className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-2 py-1 rounded transition-colors"
           >
             Control tower

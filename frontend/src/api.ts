@@ -321,19 +321,19 @@ export async function fetchOnboardingStatus(employeeId: string): Promise<Onboard
 }
 
 export async function fetchEmployeeProfile(employeeId: string): Promise<EmployeeProfile> {
-  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/profile`);
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/profile`, { headers: authHeaders() });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function fetchReadiness(employeeId: string): Promise<Readiness> {
-  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/readiness`);
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/readiness`, { headers: authHeaders() });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function fetchExceptions(employeeId: string): Promise<Record<string, unknown>[]> {
-  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/exceptions`);
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/exceptions`, { headers: authHeaders() });
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   return data.exceptions || [];

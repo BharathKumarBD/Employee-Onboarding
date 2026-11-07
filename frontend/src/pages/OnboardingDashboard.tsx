@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   decideApproval,
+  fetchDemoEmployee,
   fetchApprovals,
   fetchExceptions,
   fetchExecutions,
@@ -11,8 +12,11 @@ import {
 import type { Approval, Execution, OnboardingStatus, Readiness } from '../api';
 
 export default function OnboardingDashboard() {
+  const [searchParams] = useSearchParams();
+  const employeeId = searchParams.get('employeeId') || 'alex-chen';
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [employeeName, setEmployeeName] = useState('Alex Chen');
   const [exceptions, setExceptions] = useState<Record<string, unknown>[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [executions, setExecutions] = useState<Execution[]>([]);
@@ -22,9 +26,9 @@ export default function OnboardingDashboard() {
   const load = useCallback(async () => {
     try {
       const [nextStatus, nextReadiness, nextExceptions] = await Promise.all([
-        fetchOnboardingStatus('alex-chen'),
-        fetchReadiness('alex-chen'),
-        fetchExceptions('alex-chen'),
+        fetchOnboardingStatus(employeeId),
+        fetchReadiness(employeeId),
+        fetchExceptions(employeeId),
       ]);
       setStatus(nextStatus);
       setReadiness(nextReadiness);
@@ -44,11 +48,19 @@ export default function OnboardingDashboard() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load onboarding dashboard');
     }
-  }, [adminKey]);
+  }, [adminKey, employeeId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void (async () => {
+      try {
+        const employee = await fetchDemoEmployee(employeeId);
+        setEmployeeName(employee.name);
+      } catch {
+        setEmployeeName(employeeId);
+      }
+      await load();
+    })();
+  }, [employeeId, load]);
 
   const decide = async (id: number, decision: 'approved' | 'rejected') => {
     try {
@@ -65,7 +77,7 @@ export default function OnboardingDashboard() {
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">Onboarding control tower</p>
-            <h1 className="text-xl font-semibold">Alex Chen readiness dashboard</h1>
+            <h1 className="text-xl font-semibold">{employeeName} readiness dashboard</h1>
             <p className="text-sm text-slate-500">A single view of blockers, approvals, and agent reliability.</p>
           </div>
           <div className="flex gap-2">
