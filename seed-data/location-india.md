@@ -1,4 +1,4 @@
-# Acme Corp India — Location-Specific Onboarding Guide
+# Dayforce India — Location-Specific Onboarding Guide
 
 > This document applies to employees based in India (offices in Bangalore, Mumbai, and remote India locations).
 
@@ -37,7 +37,7 @@ Additional regional/state holidays may apply based on your office location. The 
 
 ## Leave Policy (India)
 
-In addition to Acme Corp's global PTO policy, India employees receive:
+In addition to Dayforce's global PTO policy, India employees receive:
 - **Earned Leave (EL)**: 15 days per year (accrued monthly), carries over up to 30 days.
 - **Sick Leave (SL)**: 12 days per year.
 - **Casual Leave (CL)**: 12 days per year.
@@ -55,11 +55,11 @@ In addition to Acme Corp's global PTO policy, India employees receive:
 ## IT and Connectivity (India)
 
 - VPN connection may experience higher latency from India — contact IT if connections are slow.
-- Use `it-help@acmecorp.com` or Slack `#it-support` for assistance.
+- Use `it-help@dayforce.com` or Slack `#it-support` for assistance.
 - Recommended: Use office Wi-Fi or high-speed broadband (minimum 50 Mbps) for video calls.
 
 ## HR Contact (India)
 
-For India-specific HR queries: **india-hr@acmecorp.com**
-Payroll queries: **india-payroll@acmecorp.com**
-Office operations (Bangalore): **blr-ops@acmecorp.com**
+For India-specific HR queries: **india-hr@dayforce.com**
+Payroll queries: **india-payroll@dayforce.com**
+Office operations (Bangalore): **blr-ops@dayforce.com**

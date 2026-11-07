@@ -29,6 +29,15 @@ from shared.auth import (
 from shared.config import ADMIN_API_KEY, ALLOWED_ORIGINS, DEFAULT_EMPLOYEE_ID, TRUSTED_PROXIES
 from shared.eval_results import load_eval_reports
 from shared.tasks import complete_task, get_onboarding_status, list_checkins, reset_employee_data
+from shared.onboarding_operations import (
+    calculate_readiness,
+    create_approval,
+    decide_approval,
+    get_onboarding_exceptions,
+    list_approvals,
+    list_executions,
+)
+from shared.profiles import get_employee_profile, list_demo_profiles, upsert_employee_profile
 
 audit_logger = logging.getLogger("onboardai.audit")
 
@@ -186,7 +195,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins if cors_origins else (["*"] if has_wildcard else ["http://localhost:5173", "http://localhost:3000"]),
     allow_credentials=False if (has_wildcard and not cors_origins) else True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Admin-Key", "X-Session-Token"],
 )
 
@@ -267,6 +276,21 @@ class DocumentSignRequest(BaseModel):
 class ActionExecuteRequest(BaseModel):
     action_type: str
     payload: dict = Field(default_factory=dict)
+
+
+class EmployeeProfileRequest(BaseModel):
+    name: str | None = None
+    role: str | None = None
+    department: str | None = None
+    start_date: str | None = None
+    employment_type: str | None = None
+    work_mode: str | None = None
+    location: str | None = None
+
+
+class ApprovalDecisionRequest(BaseModel):
+    status: str
+    approved_by: str
 
 
 def _validate_chat_request(request: ChatRequest) -> list[dict]:
@@ -398,6 +422,37 @@ def onboarding_status(
     return get_onboarding_status(employee_id)
 
 
+@app.get("/api/onboarding/{employee_id}/readiness")
+def onboarding_readiness(employee_id: str):
+    _validate_employee_id(employee_id)
+    return calculate_readiness(employee_id)
+
+
+@app.get("/api/onboarding/{employee_id}/exceptions")
+def onboarding_exceptions(employee_id: str):
+    _validate_employee_id(employee_id)
+    return {"exceptions": get_onboarding_exceptions(employee_id)}
+
+
+@app.get("/api/onboarding/{employee_id}/profile")
+def employee_profile(employee_id: str):
+    _validate_employee_id(employee_id)
+    return get_employee_profile(employee_id)
+
+
+@app.post("/api/onboarding/{employee_id}/profile")
+def update_employee_profile(
+    employee_id: str,
+    body: EmployeeProfileRequest,
+    api_key: str | None = Security(admin_key_header),
+):
+    _validate_employee_id(employee_id)
+    _require_admin(api_key)
+    result = upsert_employee_profile(employee_id, **body.model_dump(exclude_none=True))
+    _audit_log("employee_profile_updated", employee_id=employee_id, details=result)
+    return result
+
+
 @app.post("/api/onboarding/{employee_id}/tasks/{task_id}/complete")
 def mark_task_complete(
     employee_id: str,
@@ -467,6 +522,48 @@ def admin_audit_logs(
         return {"audit_logs": [dict(row) for row in rows]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/admin/approvals")
+def admin_approvals(
+    employee_id: str | None = None,
+    api_key: str | None = Security(admin_key_header),
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
+    _require_admin(api_key, user)
+    if employee_id:
+        _validate_employee_id(employee_id)
+    return {"approvals": list_approvals(employee_id)}
+
+
+@app.post("/api/admin/approvals/{approval_id}/decision")
+def admin_decide_approval(
+    approval_id: int,
+    body: ApprovalDecisionRequest,
+    api_key: str | None = Security(admin_key_header),
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
+    _require_admin(api_key, user)
+    try:
+        result = decide_approval(approval_id, body.status, body.approved_by)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not result:
+        raise HTTPException(status_code=404, detail="Approval request not found or already decided")
+    _audit_log("approval_decided", employee_id=result["employee_id"], performed_by=body.approved_by, details=result)
+    return result
+
+
+@app.get("/api/admin/executions")
+def admin_executions(
+    employee_id: str | None = None,
+    api_key: str | None = Security(admin_key_header),
+    user: dict[str, Any] | None = Security(get_current_user_optional),
+):
+    _require_admin(api_key, user)
+    if employee_id:
+        _validate_employee_id(employee_id)
+    return {"executions": list_executions(employee_id)}
 
 
 @app.get("/api/onboarding/{employee_id}/equipment")
@@ -641,6 +738,13 @@ def submit_payroll(
             currency=body.currency,
             allowances=body.withholding_allowances,
         )
+        create_approval(
+            employee_id,
+            action="Review payroll details",
+            resource_type="payroll",
+            resource_id=employee_id,
+            reason="Payroll details submitted and awaiting HR verification.",
+        )
         _audit_log("payroll_submitted", employee_id=employee_id, performed_by=user.get("sub", "api"), details={"bank": body.bank_name})
         return result
     except ValueError as e:
@@ -729,9 +833,16 @@ def eval_results():
 
 @app.get("/api/employee/demo")
 def demo_employee() -> dict[str, Any]:
+    return demo_employee_by_id(DEFAULT_EMPLOYEE_ID)
+
+
+def demo_employee_by_id(employee_id: str) -> dict[str, Any]:
+    profile = next((item for item in list_demo_profiles() if item["employee_id"] == employee_id), None)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Demo employee not found")
     try:
         from shared.assignments import get_employee_assignment
-        assignment = get_employee_assignment(DEFAULT_EMPLOYEE_ID)
+        assignment = get_employee_assignment(employee_id)
         location = assignment.get("location", "Finland")
         manager = assignment.get("manager_name", "Sarah Johnson")
         buddy = assignment.get("buddy_name", "Marcus Lee")
@@ -740,15 +851,34 @@ def demo_employee() -> dict[str, Any]:
         manager = "Sarah Johnson"
         buddy = "Marcus Lee"
 
-    demo_token = create_token(DEFAULT_EMPLOYEE_ID, "employee")
+    demo_token = create_token(employee_id, "employee")
     return {
-        "id": DEFAULT_EMPLOYEE_ID,
-        "name": "Alex Chen",
-        "role": "Software Engineer",
+        "id": employee_id,
+        "name": profile["name"],
+        "role": profile["role"],
         "start_day": 1,
-        "company": "Acme Corp",
-        "location": location,
+        "company": "Dayforce",
+        "location": profile["location"] or location,
         "manager": manager,
         "buddy": buddy,
         "access_token": demo_token,
     }
+
+
+@app.get("/api/employees/demo")
+def demo_employees() -> dict[str, Any]:
+    return {
+        "employees": [
+            {
+                **profile,
+                "id": profile["employee_id"],
+                "access_token": create_token(profile["employee_id"], "employee"),
+            }
+            for profile in list_demo_profiles()
+        ]
+    }
+
+
+@app.get("/api/employee/demo/{employee_id}")
+def demo_employee_selected(employee_id: str) -> dict[str, Any]:
+    return demo_employee_by_id(employee_id)

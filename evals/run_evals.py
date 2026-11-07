@@ -16,9 +16,28 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "backend"))
 
+
+def load_dotenv() -> None:
+    """Load simple KEY=VALUE entries for direct local eval execution."""
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+load_dotenv()
+
 from agent.onboarding_agent import run_agent  # noqa: E402
 from shared.eval_results import golden_report_path, results_dir
-from shared.config import DEFAULT_EMPLOYEE_ID  # noqa: E402
+from shared.config import LLM_API_KEY  # noqa: E402
 from shared.tasks import list_onboarding_tasks, reset_employee_data  # noqa: E402
 
 EVALS_DIR = Path(__file__).parent
@@ -108,8 +127,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if not os.getenv("OPENAI_API_KEY"):
-        print("ERROR: OPENAI_API_KEY required for evals")
+    if not LLM_API_KEY:
+        print("ERROR: Configure GEMINI_API_KEY, GROK_API_KEY, or OPENAI_API_KEY for evals")
         return 1
 
     scenarios = load_scenarios()

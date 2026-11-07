@@ -95,6 +95,14 @@ To satisfy requirements for open-source / open-weight models, OnboardAI supports
 - **Multi-Dimensional Worker Matrix & Compliance FSM (Phase 2)**: Location × Worker Type × Department × Onboarding Stage composite profiling with deterministic access gating (Security Training prerequisites)
 - **Two-Way Human-in-the-Loop (HITL) Cards (Phase 3)**: Interactive Action Confirmation Cards for equipment orders and calendar scheduling with user confirmation before execution
 - **Enterprise Observability & Regional Partitioning (Phase 4)**: Node-level execution latency waterfalls, token usage and cost accounting, and ChromaDB regional vector partitioning
+- **LangGraph ReAct agent** with handbook search, personalized tasks, dependencies, check-ins, approvals, equipment, training, and assignment tools
+- **Custom MCP server** exposing the same HR tools for Cursor/Claude integration
+- **Chroma RAG** over seed HR documents with source citations
+- **React UI** — streaming chat, citation chips, tool-call indicators, onboarding progress sidebar
+- **Control tower dashboard** — readiness score, mandatory blockers, exception escalation, approval queue, and agent execution timeline at `/dashboard`
+- **Personalized workflow data** — employee profile, role/department-aware tasks, idempotency, prerequisite blocking, and audit history
+- **Eval harness** — 28 golden scenarios testing retrieval, tool use, answer quality, and prompt-injection resistance
+- **Prompt-injection defenses** — input sandboxing, output guardrails, write-tool blocking, server-side tool validation
 
 ## Security & Governance
 
@@ -119,13 +127,13 @@ Run injection evals: `./scripts/run-evals-docker.sh --filter prompt_injection` �
 ### Prerequisites
 
 - Docker & Docker Compose
-- OpenAI API key
+- Gemini API key (recommended), Grok API key, or OpenAI API key
 
 ### Run with Docker
 
 ```bash
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY
+# Edit .env and set GEMINI_API_KEY (or GROK_API_KEY / OPENAI_API_KEY)
 
 docker-compose up --build
 ```
@@ -196,6 +204,8 @@ cat evals/results/latest.json
 ```
 
 Or open **Admin → Evals** in the app at `/admin/evals`.
+
+Open **Control tower** at `/dashboard` to review readiness, blockers, approvals, and recent agent executions for the demo employee.
 
 | Field | Meaning |
 |---|---|

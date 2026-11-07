@@ -107,7 +107,7 @@ Each result includes per-metric `score`, `passed`, and `reason`.
 
 | Var | Default | Purpose |
 |-----|---------|---------|
-| `OPENAI_API_KEY` | — | Required (agent + judge) |
+| `GEMINI_API_KEY` / `GROK_API_KEY` / `OPENAI_API_KEY` | — | Provider key for the agent runner; DeepEval judge configuration may require its own provider key |
 | `DEEPEVAL_THRESHOLD` | `0.7` | Minimum passing score |
 | `DEEPEVAL_MODEL` | `gpt-4o-mini` | Judge model |
 

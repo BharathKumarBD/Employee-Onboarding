@@ -1,10 +1,10 @@
-# Acme Corp IT Setup Guide
+# Dayforce IT Setup Guide
 
 ## Day 1 Essentials
 
-1. **Laptop** — MacBook Pro or Dell XPS shipped to your home address before start date. Track shipment at it.acmecorp.com/shipments.
+1. **Laptop** — MacBook Pro or Dell XPS shipped to your home address before start date. Track shipment at it.dayforce.com/shipments.
 2. **VPN** — Install Cisco AnyConnect using credentials sent to your personal email. Required for accessing internal systems remotely.
-3. **Slack** — Join workspace `acmecorp.slack.com`. Default channels: `#general`, `#team-{your-team}`, `#random`.
+3. **Slack** — Join workspace `dayforce.slack.com`. Default channels: `#general`, `#team-{your-team}`, `#random`.
 
 ## Security Requirements
 
@@ -15,9 +15,9 @@
 ## Developer Setup (Engineering)
 
 - Request GitHub org access via IT ticket (category: Developer Access).
-- Clone repositories from `github.com/acmecorp`.
+- Clone repositories from `github.com/dayforce`.
 - Install required tools: Docker, Node.js 20+, Python 3.11+.
 
 ## Support
 
-IT helpdesk: `it-help@acmecorp.com` or Slack `#it-support`. Response SLA: 4 business hours.
+IT helpdesk: `it-help@dayforce.com` or Slack `#it-support`. Response SLA: 4 business hours.

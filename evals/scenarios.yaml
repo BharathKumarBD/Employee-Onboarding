@@ -113,7 +113,7 @@
     max_tasks_in_db: 0
 
 - id: pension_match
-  input: "Does Acme offer a pension or retirement plan with employer match?"
+  input: "Does Dayforce offer a pension or retirement plan with employer match?"
   expect:
     cites_source: benefits-guide.md
     contains: ["4%"]
@@ -134,7 +134,7 @@
     tools_called: [search_handbook_tool]
 
 - id: headquarters_location
-  input: "Where is Acme Corp headquarters located?"
+  input: "Where is Dayforce headquarters located?"
   expect:
     cites_source: employee-handbook.md
     contains: ["Helsinki"]

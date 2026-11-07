@@ -73,7 +73,7 @@ This beats a generic "AI assistant" because it demonstrates **agentic behavior**
 | MCP experience | Custom Python MCP server exposing HR tools |
 | LLM + prompt engineering | System prompt with onboarding persona, citation rules, guardrails |
 | Architect scalable systems | Clean monorepo: `backend/`, `mcp-server/`, `frontend/`, `evals/` |
-| Real-world impact | Pre-seeded "Acme Corp" employee scenario with measurable completion % |
+| Real-world impact | Pre-seeded "Dayforce" employee scenario with measurable completion % |
 
 ### Cut (save for "future work" slide in interview)
 

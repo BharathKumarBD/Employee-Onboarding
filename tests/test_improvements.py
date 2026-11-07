@@ -53,7 +53,7 @@ def test_security_injection_detection():
 
     # Legitimate queries with keywords must be recognized as legitimate HR intent
     assert has_legitimate_hr_intent("How many PTO days do I get per year?")
-    assert has_legitimate_hr_intent("Where is Acme Corp headquarters located?")
+    assert has_legitimate_hr_intent("Where is Dayforce headquarters located?")
     assert has_legitimate_hr_intent("How do I contact IT if my laptop setup fails?")
     assert has_legitimate_hr_intent("Which Slack channels should I join?")
     assert has_legitimate_hr_intent("When should I meet my onboarding buddy?")
@@ -71,7 +71,7 @@ def test_security_injection_detection():
     # Hijacked output guardrail
     assert is_hijacked_response("Sorry we are down now, try again later")
     assert validate_output("Sorry we are down now, try again later") == SAFE_FALLBACK_RESPONSE
-    assert validate_output("Acme Corp offers 25 days of PTO.") == "Acme Corp offers 25 days of PTO."
+    assert validate_output("Dayforce offers 25 days of PTO.") == "Dayforce offers 25 days of PTO."
 
     # Write tools protected during suspected injection
     assert "create_onboarding_task_tool" in WRITE_TOOL_NAMES
@@ -178,14 +178,14 @@ def test_rag_seed_documents():
     assert "Provident Fund" in india_text
     assert "Gratuity" in india_text
     assert "Republic Day" in india_text
-    assert "india-hr@acmecorp.com" in india_text
+    assert "india-hr@acmecorp.com" in india_text or "india-hr@dayforce.com" in india_text
 
     # Verify USA document contents
     usa_text = (SEED_DATA_DIR / "location-usa.md").read_text(encoding="utf-8")
     assert "401(k)" in usa_text
     assert "I-9" in usa_text
     assert "Thanksgiving" in usa_text
-    assert "usa-hr@acmecorp.com" in usa_text
+    assert "usa-hr@acmecorp.com" in usa_text or "usa-hr@dayforce.com" in usa_text
 
     # Verify chunking works on location docs
     india_chunks = _chunk_markdown(india_text, "location-india.md")
@@ -220,6 +220,17 @@ def test_agent_prompts_and_routing():
     assert "location-india.md" in SYNTHESIZER_PROMPT
     assert "location-usa.md" in SYNTHESIZER_PROMPT
     print("✅ test_agent_prompts_and_routing passed")
+
+
+def test_deterministic_high_confidence_routing():
+    from backend.agent.multi_agent import _forced_research_query, _keyword_route
+
+    assert _keyword_route("Which Slack channels should I join?") == (True, False)
+    assert _keyword_route("Please schedule a check-in on day 7.") == (False, True)
+    assert _keyword_route("What's the remote policy and first week checklist?") == (True, True)
+    assert _forced_research_query("Where is Dayforce headquarters?") == "office locations headquarters"
+    assert _forced_research_query("How do I contact IT helpdesk?") == "IT helpdesk support contact"
+    assert _forced_research_query("When should I meet my onboarding buddy?") == "onboarding buddy timing program"
 
 
 # 8. Tool Definitions and Docstrings
@@ -933,7 +944,7 @@ def test_phase4_telemetry_and_rag_partitioning():
     assert chunks[0]["source"] == "location-india.md"
 
     usa_chunks = _chunk_markdown(
-        "# USA Benefits\nAcme Corp USA health insurance details.",
+        "# USA Benefits\nDayforce USA health insurance details.",
         source="location-usa.md",
     )
     assert len(usa_chunks) > 0

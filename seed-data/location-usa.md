@@ -1,4 +1,4 @@
-# Acme Corp USA — Location-Specific Onboarding Guide
+# Dayforce USA — Location-Specific Onboarding Guide
 
 > This document applies to employees based in the United States.
 
@@ -22,14 +22,14 @@ Additional state holidays may apply. Check the HR portal for the full USA holida
 ## Benefits (USA)
 
 ### Health Insurance
-- Acme Corp USA employees are eligible for health insurance from Day 1.
+- Dayforce USA employees are eligible for health insurance from Day 1.
 - Must enroll within 30 days of start date.
 - Plans: Basic PPO (employer covers 80%) and Premium PPO with dental and vision (employer covers 70%).
-- Contact benefits-usa@acmecorp.com for enrollment forms.
+- Contact benefits-usa@dayforce.com for enrollment forms.
 - HSA (Health Savings Account) is available with the high-deductible plan option.
 
 ### 401(k) Retirement Plan
-- Acme Corp matches up to 4% of salary after 6 months of employment.
+- Dayforce matches up to 4% of salary after 6 months of employment.
 - Auto-enrolled at 3% contribution after first paycheck; adjust in the HR portal.
 - Roth 401(k) option available.
 - Vesting schedule: 25% per year, fully vested after 4 years.
@@ -80,9 +80,9 @@ In addition to global PTO (25 days/year):
 
 ## HR Contact (USA)
 
-For USA-specific HR queries: **usa-hr@acmecorp.com**
-Benefits questions: **benefits-usa@acmecorp.com**
-Payroll queries: **usa-payroll@acmecorp.com**
+For USA-specific HR queries: **usa-hr@dayforce.com**
+Benefits questions: **benefits-usa@dayforce.com**
+Payroll queries: **usa-payroll@dayforce.com**
 
 
 ## Worker Classification: FTE vs. Contractor (USA)
@@ -98,15 +98,15 @@ Payroll queries: **usa-payroll@acmecorp.com**
 - Receive Form 1099-NEC; responsible for self-employment taxes.
 - **NOT eligible** for: company health insurance, dental, vision, 401(k) matching, PTO, equity/stock options, or company-sponsored retirement plans.
 - Must use BYOD (Bring Your Own Device) or company-provided VDI (Virtual Desktop Infrastructure).
-- Submit invoices to Accounts Payable (ap@acmecorp.com) on a monthly basis.
+- Submit invoices to Accounts Payable (ap@dayforce.com) on a monthly basis.
 - Must sign NDA and Contractor Services Agreement before starting.
 - No Form I-9 required; instead, complete Form W-9.
 - Contractors are not entitled to overtime pay, sick leave, or workers' compensation under federal law.
 
 ### Legal Distinction
 Misclassification of workers carries significant legal risk. The IRS and state labor boards assess:
-1. **Behavioral control**: Does Acme direct how the work is done?
-2. **Financial control**: Does Acme provide tools, set payment terms?
+1. **Behavioral control**: Does Dayforce direct how the work is done?
+2. **Financial control**: Does Dayforce provide tools, set payment terms?
 3. **Relationship type**: Is there a contract? Benefits?
 
-Questions about worker classification should be directed to legal@acmecorp.com.
+Questions about worker classification should be directed to legal@dayforce.com.

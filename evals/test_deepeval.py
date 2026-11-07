@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+deepeval = pytest.importorskip("deepeval", reason="DeepEval is an optional evaluation dependency")
 from deepeval import assert_test
 
 ROOT = Path(__file__).resolve().parent.parent

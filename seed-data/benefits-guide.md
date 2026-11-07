@@ -1,4 +1,4 @@
-# Acme Corp Benefits Guide
+# Dayforce Benefits Guide
 
 ## Health Insurance
 
@@ -8,11 +8,11 @@ Plans available:
 - **Basic Plan** — employer covers 80% of premiums
 - **Premium Plan** — employer covers 70% of premiums, includes dental and vision
 
-Contact benefits@acmecorp.com for enrollment forms.
+Contact benefits@dayforce.com for enrollment forms.
 
 ## Retirement
 
-Acme Corp offers a pension plan with **4% employer match** after 6 months of employment. Enrollment is automatic; you may adjust contribution percentages in the HR portal.
+Dayforce offers a pension plan with **4% employer match** after 6 months of employment. Enrollment is automatic; you may adjust contribution percentages in the HR portal.
 
 ## Wellness Stipend
 

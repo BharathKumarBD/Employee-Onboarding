@@ -1,4 +1,4 @@
-# Acme Corp 30-Day Onboarding Checklist
+# Dayforce 30-Day Onboarding Checklist
 
 ## Week 1 — Foundations
 

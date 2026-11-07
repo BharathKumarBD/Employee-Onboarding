@@ -21,6 +21,11 @@ def create_onboarding_task(
     title: str,
     due_day: int,
     category: str,
+    role: str | None = None,
+    department: str | None = None,
+    required: bool = False,
+    owner: str = "employee",
+    depends_on: list[int] | None = None,
 ) -> dict[str, Any]:
     ensure_db()
     title = title.strip()
@@ -37,17 +42,51 @@ def create_onboarding_task(
 
     with get_connection() as conn:
         with conn.cursor() as cur:
+            idempotency_key = f"{employee_id}:{title.lower()}:{due_day}"
             cur.execute(
                 """
-                INSERT INTO onboarding_tasks (employee_id, title, due_day, category, status, created_at)
-                VALUES (%s, %s, %s, %s, 'pending', %s)
+                SELECT id, employee_id, title, due_day, category, status, created_at,
+                       department, role, owner, required, blocked_reason
+                FROM onboarding_tasks
+                WHERE idempotency_key = %s
+                """,
+                (idempotency_key,),
+            )
+            existing = cur.fetchone()
+            if existing:
+                return {**dict(existing), "idempotent": True}
+            cur.execute(
+                """
+                INSERT INTO onboarding_tasks
+                    (employee_id, title, due_day, category, status, created_at, role,
+                     department, required, owner, idempotency_key)
+                VALUES (%s, %s, %s, %s, 'pending', %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (employee_id, title, due_day, category, _now_iso()),
+                (
+                    employee_id,
+                    title,
+                    due_day,
+                    category,
+                    _now_iso(),
+                    role,
+                    department,
+                    required,
+                    owner,
+                    idempotency_key,
+                ),
             )
             row = cur.fetchone()
-            conn.commit()
             task_id = row["id"]
+            for dependency_id in depends_on or []:
+                cur.execute(
+                    """
+                    INSERT INTO task_dependencies (task_id, depends_on_task_id)
+                    VALUES (%s, %s) ON CONFLICT DO NOTHING
+                    """,
+                    (task_id, dependency_id),
+                )
+            conn.commit()
 
     return {
         "id": task_id,
@@ -56,16 +95,23 @@ def create_onboarding_task(
         "due_day": due_day,
         "category": category,
         "status": "pending",
+        "role": role,
+        "department": department,
+        "required": required,
+        "owner": owner,
+        "dependencies": depends_on or [],
     }
 
 
 def list_onboarding_tasks(employee_id: str) -> list[dict[str, Any]]:
     ensure_db()
+    _refresh_dependency_statuses(employee_id)
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, employee_id, title, due_day, category, status, created_at
+                SELECT id, employee_id, title, due_day, category, status, created_at,
+                       role, department, owner, required, blocked_reason
                 FROM onboarding_tasks
                 WHERE employee_id = %s
                 ORDER BY due_day ASC, id ASC
@@ -75,6 +121,48 @@ def list_onboarding_tasks(employee_id: str) -> list[dict[str, Any]]:
             rows = cur.fetchall()
 
     return [dict(row) for row in rows]
+
+
+def _refresh_dependency_statuses(employee_id: str) -> None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE onboarding_tasks AS task
+                SET status = 'blocked',
+                    blocked_reason = 'Waiting for prerequisite task'
+                WHERE task.employee_id = %s
+                  AND task.status = 'pending'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM task_dependencies dep
+                      JOIN onboarding_tasks prerequisite
+                        ON prerequisite.id = dep.depends_on_task_id
+                      WHERE dep.task_id = task.id
+                        AND prerequisite.status <> 'completed'
+                  )
+                """,
+                (employee_id,),
+            )
+            cur.execute(
+                """
+                UPDATE onboarding_tasks AS task
+                SET status = 'pending', blocked_reason = NULL
+                WHERE task.employee_id = %s
+                  AND task.status = 'blocked'
+                  AND task.blocked_reason = 'Waiting for prerequisite task'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM task_dependencies dep
+                      JOIN onboarding_tasks prerequisite
+                        ON prerequisite.id = dep.depends_on_task_id
+                      WHERE dep.task_id = task.id
+                        AND prerequisite.status <> 'completed'
+                  )
+                """,
+                (employee_id,),
+            )
+        conn.commit()
 
 
 def complete_task(task_id: int, employee_id: str) -> dict[str, Any] | None:
@@ -99,6 +187,17 @@ def complete_task(task_id: int, employee_id: str) -> dict[str, Any] | None:
 
 def get_onboarding_status(employee_id: str) -> dict[str, Any]:
     tasks = list_onboarding_tasks(employee_id)
+    for task in tasks:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT depends_on_task_id FROM task_dependencies
+                    WHERE task_id = %s ORDER BY depends_on_task_id
+                    """,
+                    (task["id"],),
+                )
+                task["dependencies"] = [row["depends_on_task_id"] for row in cur.fetchall()]
     total = len(tasks)
     completed = sum(1 for t in tasks if t["status"] == "completed")
     pct = round((completed / total) * 100) if total else 0

@@ -5,13 +5,33 @@ from shared.db import _now_iso, get_connection, init_db
 
 DEFAULT_ASSIGNMENTS = {
     "manager_name": "Sarah Johnson",
-    "manager_email": "sarah.johnson@acmecorp.com",
+    "manager_email": "sarah.johnson@dayforce.com",
     "buddy_name": "Marcus Lee",
-    "buddy_email": "marcus.lee@acmecorp.com",
+    "buddy_email": "marcus.lee@dayforce.com",
     "location": "Finland",
     "worker_type": "fte",
     "department": "engineering",
     "onboarding_stage": "day_one",
+}
+
+DEMO_ASSIGNMENTS = {
+    "alex-chen": {},
+    "priya-sharma": {
+        "manager_name": "Neha Kapoor",
+        "manager_email": "neha.kapoor@dayforce.com",
+        "buddy_name": "Anika Rao",
+        "buddy_email": "anika.rao@dayforce.com",
+        "location": "India",
+        "department": "design",
+    },
+    "marcus-lee": {
+        "manager_name": "Jordan Williams",
+        "manager_email": "jordan.williams@dayforce.com",
+        "buddy_name": "Taylor Brooks",
+        "buddy_email": "taylor.brooks@dayforce.com",
+        "location": "United States",
+        "department": "operations",
+    },
 }
 
 VALID_WORKER_TYPES = {"fte", "contractor", "intern"}
@@ -45,13 +65,13 @@ def get_employee_assignment(employee_id: str) -> dict[str, Any]:
     # Return default demo profile if not explicitly saved yet
     return {
         "employee_id": employee_id,
-        "manager_name": DEFAULT_ASSIGNMENTS["manager_name"],
-        "manager_email": DEFAULT_ASSIGNMENTS["manager_email"],
-        "buddy_name": DEFAULT_ASSIGNMENTS["buddy_name"],
-        "buddy_email": DEFAULT_ASSIGNMENTS["buddy_email"],
-        "location": DEFAULT_ASSIGNMENTS["location"],
+        "manager_name": DEMO_ASSIGNMENTS.get(employee_id, {}).get("manager_name", DEFAULT_ASSIGNMENTS["manager_name"]),
+        "manager_email": DEMO_ASSIGNMENTS.get(employee_id, {}).get("manager_email", DEFAULT_ASSIGNMENTS["manager_email"]),
+        "buddy_name": DEMO_ASSIGNMENTS.get(employee_id, {}).get("buddy_name", DEFAULT_ASSIGNMENTS["buddy_name"]),
+        "buddy_email": DEMO_ASSIGNMENTS.get(employee_id, {}).get("buddy_email", DEFAULT_ASSIGNMENTS["buddy_email"]),
+        "location": DEMO_ASSIGNMENTS.get(employee_id, {}).get("location", DEFAULT_ASSIGNMENTS["location"]),
         "worker_type": DEFAULT_ASSIGNMENTS["worker_type"],
-        "department": DEFAULT_ASSIGNMENTS["department"],
+        "department": DEMO_ASSIGNMENTS.get(employee_id, {}).get("department", DEFAULT_ASSIGNMENTS["department"]),
         "onboarding_stage": DEFAULT_ASSIGNMENTS["onboarding_stage"],
         "is_default": True,
     }

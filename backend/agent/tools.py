@@ -19,6 +19,8 @@ from shared.tasks import (
     list_onboarding_tasks,
     schedule_checkin,
 )
+from shared.profiles import get_employee_profile
+from shared.onboarding_operations import create_approval
 from shared.training import (
     assign_training,
     auto_assign_standard_trainings,
@@ -54,7 +56,14 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
     tasks_created = 0
 
     @tool
-    def create_onboarding_task_tool(title: str, due_day: int, category: str) -> str:
+    def create_onboarding_task_tool(
+        title: str,
+        due_day: int,
+        category: str,
+        required: bool = False,
+        owner: str = "employee",
+        depends_on: list[int] | None = None,
+    ) -> str:
         """Create an onboarding task to track in the employee's checklist. 
         Category must be: HR, IT, or Team.
         Do NOT use this for scheduling check-ins or meetings — use schedule_checkin_tool for those.
@@ -64,7 +73,6 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
             return WRITE_BLOCKED_MSG
         if tasks_created >= MAX_TASKS_PER_REQUEST:
             return f"Task limit reached ({MAX_TASKS_PER_REQUEST} per message)."
-        # Validate LLM arguments strictly
         try:
             due_day_int = int(due_day)
         except (ValueError, TypeError):
@@ -72,7 +80,18 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         clean_title = str(title).strip()
         clean_cat = str(category).strip()
         try:
-            task = create_onboarding_task(employee_id, clean_title, due_day_int, clean_cat)
+            profile = get_employee_profile(employee_id)
+            task = create_onboarding_task(
+                employee_id,
+                clean_title,
+                due_day_int,
+                clean_cat,
+                role=profile.get("role"),
+                department=profile.get("department"),
+                required=required,
+                owner=owner,
+                depends_on=depends_on,
+            )
         except ValueError as exc:
             return f"Invalid task: {exc}"
         tasks_created += 1
@@ -139,7 +158,7 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         Use when asked about laptop, ID card, accessories, monitors, or any equipment."""
         allocations = get_equipment_allocations(employee_id)
         if not allocations:
-            return "No equipment allocations found. Standard equipment (laptop, ID card) is typically arranged by IT before your start date. Contact it-help@acmecorp.com to check status."
+            return "No equipment allocations found. Standard equipment (laptop, ID card) is typically arranged by IT before your start date. Contact it-help@dayforce.com to check status."
         return json.dumps(allocations, default=str)
 
     @tool
@@ -269,6 +288,13 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
                 tax_filing_status=tax_upper,
                 currency=currency,
             )
+            create_approval(
+                employee_id,
+                action="Review payroll details",
+                resource_type="payroll",
+                resource_id=employee_id,
+                reason="Payroll details submitted and awaiting HR verification.",
+            )
             return json.dumps(result, default=str)
         except ValueError as exc:
             return f"Payroll submission error: {exc}"
@@ -294,6 +320,17 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         result = sign_document(employee_id, document_code)
         if not result:
             return f"Document '{document_code}' not found. Use list_pending_documents_tool to see available documents."
+    @tool
+    def request_approval_tool(action: str, resource_type: str, reason: str) -> str:
+        """Create a human approval request before a sensitive onboarding action."""
+        if injection_suspected:
+            return WRITE_BLOCKED_MSG
+        result = create_approval(
+            employee_id,
+            action=action,
+            resource_type=resource_type,
+            reason=reason,
+        )
         return json.dumps(result, default=str)
 
     return [
@@ -312,6 +349,7 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         submit_direct_deposit_tool,
         list_pending_documents_tool,
         sign_document_tool,
+        request_approval_tool,
     ]
 
 

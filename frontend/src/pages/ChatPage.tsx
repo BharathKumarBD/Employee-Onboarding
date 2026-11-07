@@ -6,12 +6,13 @@ import {
   completeTraining,
   executeConfirmedAction,
   fetchAssignments,
-  fetchDemoEmployee,
+  fetchDemoEmployees,
   fetchDocuments,
   fetchEquipment,
   fetchOnboardingStatus,
   fetchPayroll,
   fetchTrainings,
+  setAuthToken,
   resetOnboarding,
   signEmployeeDocument,
   streamChat,
@@ -658,9 +659,40 @@ function PayrollTabContent({
   const [currency, setCurrency] = useState('USD');
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const indianBankPrefixes: Record<string, string> = {
+    SBI: 'SBIN',
+    'State Bank of India': 'SBIN',
+    HDFC: 'HDFC',
+    'HDFC Bank': 'HDFC',
+    ICICI: 'ICIC',
+    'ICICI Bank': 'ICIC',
+    'Axis Bank': 'UTIB',
+    Kotak: 'KKBK',
+    PNB: 'PUNB',
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (currency === 'USD' && !/^\d{9}$/.test(routingOrIfsc.trim())) {
+      setFeedback('For USD, enter the 9-digit US ABA routing number.');
+      return;
+    }
+    if (currency === 'INR' && !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(routingOrIfsc.trim())) {
+      const expectedPrefix = indianBankPrefixes[bankName.trim()];
+      setFeedback(
+        expectedPrefix
+          ? `For ${bankName}, enter an 11-character IFSC beginning with ${expectedPrefix}0 (for example ${expectedPrefix}0001234).`
+          : 'For INR, enter an 11-character IFSC code such as HDFC0001234.',
+      );
+      return;
+    }
+    if (currency === 'INR') {
+      const expectedPrefix = indianBankPrefixes[bankName.trim()];
+      if (expectedPrefix && !routingOrIfsc.trim().toUpperCase().startsWith(`${expectedPrefix}0`)) {
+        setFeedback(`The IFSC code does not match ${bankName}. Use a code beginning with ${expectedPrefix}0.`);
+        return;
+      }
+    }
     setSubmitting(true);
     setFeedback(null);
     try {
@@ -737,6 +769,11 @@ function PayrollTabContent({
             onChange={(e) => setBankName(e.target.value)}
             className="w-full px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-xs text-zinc-800 dark:text-zinc-200"
           />
+          {currency === 'INR' && (
+            <p className="mt-1 text-[10px] text-zinc-400">
+              Known bank prefixes are checked automatically (SBI: SBIN0, HDFC: HDFC0, ICICI: ICIC0).
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2">
@@ -1091,6 +1128,7 @@ const DEMO_PROMPTS: DemoPrompt[] = [
 export default function ChatPage() {
   const { theme, toggle } = useTheme();
   const [employee, setEmployee] = useState<DemoEmployee | null>(null);
+  const [employees, setEmployees] = useState<DemoEmployee[]>([]);
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
   const [payroll, setPayroll] = useState<PayrollProfile | null>(null);
@@ -1128,12 +1166,21 @@ export default function ChatPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchDemoEmployee().then((emp) => {
+  const selectEmployee = useCallback((emp: DemoEmployee) => {
+      if (emp.access_token) setAuthToken(emp.access_token);
       setEmployee(emp);
+      setMessages([]);
+      setError(null);
       refreshAll(emp.id);
-    }).catch(console.error);
   }, [refreshAll]);
+
+  useEffect(() => {
+    fetchDemoEmployees().then((list) => {
+      setEmployees(list);
+      const current = list[0];
+      if (current) selectEmployee(current);
+    }).catch(console.error);
+  }, [selectEmployee]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1292,6 +1339,21 @@ export default function ChatPage() {
         {/* Current Active Persona summary */}
         {employee && (
           <div className="hidden md:flex items-center gap-2 text-xs text-zinc-500 bg-zinc-100/80 dark:bg-zinc-800/80 px-3 py-1.5 rounded-full border border-zinc-200/60 dark:border-zinc-700/50">
+            {employees.length > 1 && (
+              <select
+                value={employee.id}
+                onChange={(event) => {
+                  const selected = employees.find((item) => item.id === event.target.value);
+                  if (selected) selectEmployee(selected);
+                }}
+                className="rounded border border-zinc-300 bg-white px-2 py-1 text-xs dark:border-zinc-600 dark:bg-zinc-900"
+                aria-label="Select demo employee"
+              >
+                {employees.map((item) => (
+                  <option key={item.id} value={item.id}>{item.name} · {item.location}</option>
+                ))}
+              </select>
+            )}
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             <span className="font-medium text-zinc-800 dark:text-zinc-200">{employee.name}</span>
             <span>·</span>
@@ -1315,6 +1377,12 @@ export default function ChatPage() {
             className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-2 py-1 rounded transition-colors"
           >
             Evals Suite (36)
+          </Link>
+          <Link
+            to="/dashboard"
+            className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-2 py-1 rounded transition-colors"
+          >
+            Control tower
           </Link>
 
           <button

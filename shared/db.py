@@ -23,6 +23,13 @@ def init_db() -> None:
                 )
                 """
             )
+            cur.execute("ALTER TABLE onboarding_tasks ADD COLUMN IF NOT EXISTS department TEXT")
+            cur.execute("ALTER TABLE onboarding_tasks ADD COLUMN IF NOT EXISTS role TEXT")
+            cur.execute("ALTER TABLE onboarding_tasks ADD COLUMN IF NOT EXISTS start_date DATE")
+            cur.execute("ALTER TABLE onboarding_tasks ADD COLUMN IF NOT EXISTS owner TEXT DEFAULT 'employee'")
+            cur.execute("ALTER TABLE onboarding_tasks ADD COLUMN IF NOT EXISTS required BOOLEAN NOT NULL DEFAULT FALSE")
+            cur.execute("ALTER TABLE onboarding_tasks ADD COLUMN IF NOT EXISTS blocked_reason TEXT")
+            cur.execute("ALTER TABLE onboarding_tasks ADD COLUMN IF NOT EXISTS idempotency_key TEXT")
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS checkins (
@@ -110,7 +117,27 @@ def init_db() -> None:
                     withholding_allowances INTEGER DEFAULT 0,
                     status TEXT NOT NULL DEFAULT 'pending_submission',
                     verified_at TIMESTAMPTZ,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                ALTER TABLE payroll_profiles
+                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS employee_profiles (
+                    employee_id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL DEFAULT 'Alex Chen',
+                    role TEXT NOT NULL DEFAULT 'Software Engineer',
+                    department TEXT NOT NULL DEFAULT 'Engineering',
+                    start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                    employment_type TEXT NOT NULL DEFAULT 'full_time',
+                    work_mode TEXT NOT NULL DEFAULT 'hybrid',
+                    location TEXT NOT NULL DEFAULT 'Finland',
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
@@ -140,6 +167,55 @@ def init_db() -> None:
                 ADD COLUMN IF NOT EXISTS worker_type TEXT NOT NULL DEFAULT 'fte',
                 ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT 'engineering',
                 ADD COLUMN IF NOT EXISTS onboarding_stage TEXT NOT NULL DEFAULT 'day_one'
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_dependencies (
+                    task_id INTEGER NOT NULL REFERENCES onboarding_tasks(id) ON DELETE CASCADE,
+                    depends_on_task_id INTEGER NOT NULL REFERENCES onboarding_tasks(id) ON DELETE CASCADE,
+                    PRIMARY KEY (task_id, depends_on_task_id),
+                    CHECK (task_id <> depends_on_task_id)
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS approval_requests (
+                    id SERIAL PRIMARY KEY,
+                    employee_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    resource_type TEXT NOT NULL,
+                    resource_id TEXT,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    requested_by TEXT NOT NULL DEFAULT 'agent',
+                    approved_by TEXT,
+                    reason TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    decided_at TIMESTAMPTZ
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS agent_executions (
+                    id SERIAL PRIMARY KEY,
+                    execution_id TEXT NOT NULL UNIQUE,
+                    employee_id TEXT NOT NULL,
+                    message_hash TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    tool_calls JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    error TEXT,
+                    started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    completed_at TIMESTAMPTZ
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS onboarding_task_idempotency_idx
+                ON onboarding_tasks (idempotency_key)
+                WHERE idempotency_key IS NOT NULL
                 """
             )
         conn.commit()

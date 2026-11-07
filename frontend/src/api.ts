@@ -22,6 +22,10 @@ export interface OnboardingTask {
   due_day: number;
   category: string;
   status: string;
+  required?: boolean;
+  owner?: string;
+  blocked_reason?: string | null;
+  dependencies?: number[];
 }
 
 export interface OnboardingStatus {
@@ -30,6 +34,54 @@ export interface OnboardingStatus {
   completed_tasks: number;
   completion_percent: number;
   tasks: OnboardingTask[];
+}
+
+export interface EmployeeProfile {
+  employee_id: string;
+  name: string;
+  role: string;
+  department: string;
+  start_date: string;
+  employment_type: string;
+  work_mode: string;
+  location: string;
+}
+
+export interface Readiness {
+  employee_id: string;
+  readiness_percent: number;
+  mandatory_blockers: number;
+  components: Record<string, number>;
+  exceptions: Record<string, unknown>[];
+}
+
+export interface Approval {
+  id: number;
+  employee_id: string;
+  action: string;
+  resource_type: string;
+  status: string;
+  requested_by: string;
+  approved_by?: string;
+  reason?: string;
+  created_at: string;
+}
+
+export interface Execution {
+  id: number;
+  execution_id: string;
+  employee_id: string;
+  message_hash: string;
+  status: string;
+  tool_calls: unknown[];
+  error?: string;
+  started_at: string;
+  completed_at?: string;
+}
+
+function adminHeaders(adminKey?: string): Record<string, string> {
+  const key = adminKey || import.meta.env.VITE_ADMIN_API_KEY;
+  return authHeaders(key ? { 'X-Admin-Key': key } : {});
 }
 
 export interface DemoEmployee {
@@ -42,6 +94,9 @@ export interface DemoEmployee {
   manager?: string;
   buddy?: string;
   access_token?: string;
+  department?: string;
+  employment_type?: string;
+  work_mode?: string;
 }
 
 export interface EquipmentItem {
@@ -242,8 +297,11 @@ export async function fetchEvalResults(): Promise<EvalReportBundle> {
   return res.json();
 }
 
-export async function fetchDemoEmployee(): Promise<DemoEmployee> {
-  const res = await fetch(`${API_BASE}/api/employee/demo`, { headers: authHeaders() });
+export async function fetchDemoEmployee(employeeId?: string): Promise<DemoEmployee> {
+  const path = employeeId
+    ? `/api/employee/demo/${encodeURIComponent(employeeId)}`
+    : '/api/employee/demo';
+  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
   const data: DemoEmployee = await res.json();
   if (data.access_token) {
     setAuthToken(data.access_token);
@@ -251,9 +309,77 @@ export async function fetchDemoEmployee(): Promise<DemoEmployee> {
   return data;
 }
 
+export async function fetchDemoEmployees(): Promise<DemoEmployee[]> {
+  const res = await fetch(`${API_BASE}/api/employees/demo`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()).employees || [];
+}
+
 export async function fetchOnboardingStatus(employeeId: string): Promise<OnboardingStatus> {
   const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/status`, { headers: authHeaders() });
   return res.json();
+}
+
+export async function fetchEmployeeProfile(employeeId: string): Promise<EmployeeProfile> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/profile`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchReadiness(employeeId: string): Promise<Readiness> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/readiness`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchExceptions(employeeId: string): Promise<Record<string, unknown>[]> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/exceptions`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.exceptions || [];
+}
+
+export async function updateEmployeeProfile(
+  employeeId: string,
+  profile: Partial<EmployeeProfile>,
+  adminKey?: string,
+): Promise<EmployeeProfile> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...adminHeaders(adminKey) },
+    body: JSON.stringify(profile),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchApprovals(employeeId?: string, adminKey?: string): Promise<Approval[]> {
+  const query = employeeId ? `?employee_id=${encodeURIComponent(employeeId)}` : '';
+  const res = await fetch(`${API_BASE}/api/admin/approvals${query}`, { headers: adminHeaders(adminKey) });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()).approvals || [];
+}
+
+export async function decideApproval(
+  approvalId: number,
+  status: 'approved' | 'rejected',
+  approvedBy: string,
+  adminKey?: string,
+): Promise<Approval> {
+  const res = await fetch(`${API_BASE}/api/admin/approvals/${approvalId}/decision`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...adminHeaders(adminKey) },
+    body: JSON.stringify({ status, approved_by: approvedBy }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchExecutions(employeeId?: string, adminKey?: string): Promise<Execution[]> {
+  const query = employeeId ? `?employee_id=${encodeURIComponent(employeeId)}` : '';
+  const res = await fetch(`${API_BASE}/api/admin/executions${query}`, { headers: adminHeaders(adminKey) });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()).executions || [];
 }
 
 export async function completeTask(employeeId: string, taskId: number): Promise<void> {
@@ -357,6 +483,7 @@ export async function fetchCheckins(employeeId?: string, adminKey?: string): Pro
 // Phase 1: Payroll API
 export async function fetchPayroll(employeeId: string): Promise<PayrollProfile> {
   const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/payroll`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(await formatApiError(res, 'Unable to load payroll details'));
   return res.json();
 }
 
@@ -379,8 +506,19 @@ export async function submitPayroll(
       currency,
     }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await formatApiError(res, 'Unable to submit payroll details'));
   return res.json();
+}
+
+async function formatApiError(res: Response, fallback: string): Promise<string> {
+  let detail = '';
+  try {
+    const data = await res.json();
+    detail = typeof data.detail === 'string' ? data.detail : '';
+  } catch {
+    detail = '';
+  }
+  return detail ? `${fallback}: ${detail}` : `${fallback} (HTTP ${res.status})`;
 }
 
 // Phase 1: Documents API

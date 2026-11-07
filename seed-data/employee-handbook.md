@@ -1,8 +1,8 @@
-# Acme Corp Employee Handbook
+# Dayforce Employee Handbook
 
 ## Remote Work Policy
 
-Acme Corp supports a hybrid work model. Employees may work remotely up to **3 days per week**, including Fridays. Remote work must be coordinated with your manager and logged in the HR portal by the prior Wednesday.
+Dayforce supports a hybrid work model. Employees may work remotely up to **3 days per week**, including Fridays. Remote work must be coordinated with your manager and logged in the HR portal by the prior Wednesday.
 
 Core collaboration hours are **10:00–15:00 EET** on remote days. Employees must be available on Slack during these hours.
 
@@ -18,12 +18,12 @@ All employees must treat colleagues with respect, maintain confidentiality of co
 
 ## Office Locations
 
-Headquarters: Helsinki, Finland. Satellite offices in Stockholm and Berlin.
+Headquarters: Minneapolis, Minnesota, United States.
 
 
 ## Equipment Tiers by Department
 
-Acme Corp provides hardware based on department and worker type:
+Dayforce provides hardware based on department and worker type:
 
 ### Engineering
 - **Laptop**: MacBook Pro 14-inch M3 Pro (36 GB RAM, 512 GB SSD) or Dell XPS 15 (Linux)
@@ -46,14 +46,14 @@ Acme Corp provides hardware based on department and worker type:
 ### Contractors (all departments)
 - Contractors must provide their own equipment (BYOD policy).
 - VDI (Virtual Desktop Infrastructure) access is available upon request for security-sensitive work.
-- Contact it-help@acmecorp.com for VDI provisioning.
+- Contact it-help@dayforce.com for VDI provisioning.
 
 ### Interns
 - **Laptop**: Standard pool laptop (ThinkPad T14s, returned at internship end)
 - **Monitor**: Shared desk monitor
 - **Peripherals**: Standard set
 
-Equipment requests are processed within 2-3 business days. Contact it-help@acmecorp.com for urgent requests.
+Equipment requests are processed within 2-3 business days. Contact it-help@dayforce.com for urgent requests.
 
 ## Direct Deposit & Payroll Setup
 
@@ -65,4 +65,4 @@ New employees must set up direct deposit within their first week:
 5. HR will verify your details within 2 business days.
 6. First payroll will be processed on the next regular pay cycle after verification.
 
-For questions, contact payroll@acmecorp.com.
+For questions, contact payroll@dayforce.com.

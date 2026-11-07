@@ -13,6 +13,20 @@ from shared.db import _now_iso, get_connection, init_db
 # Routing number validation patterns
 _US_ROUTING_RE = re.compile(r'^\d{9}$')
 _IN_IFSC_RE = re.compile(r'^[A-Z]{4}0[A-Z0-9]{6}$')
+_INDIAN_BANK_PREFIXES = {
+    "SBI": "SBIN",
+    "STATE BANK OF INDIA": "SBIN",
+    "HDFC": "HDFC",
+    "HDFC BANK": "HDFC",
+    "ICICI": "ICIC",
+    "ICICI BANK": "ICIC",
+    "AXIS": "UTIB",
+    "AXIS BANK": "UTIB",
+    "KOTAK": "KKBK",
+    "KOTAK MAHINDRA BANK": "KKBK",
+    "PNB": "PUNB",
+    "PUNJAB NATIONAL BANK": "PUNB",
+}
 
 VALID_CURRENCIES = {"EUR", "USD", "INR"}
 VALID_STATUSES = {"pending_submission", "submitted", "verified"}
@@ -85,6 +99,8 @@ def submit_payroll_details(
     routing_or_ifsc_code = str(routing_or_ifsc_code).strip()
     tax_filing_status = str(tax_filing_status).strip().upper()
     currency = str(currency).strip().upper()
+    if not bank_name:
+        raise ValueError("Bank name is required.")
 
     # --- Validate account number: reject full account numbers ---
     if not re.match(r'^\d{4}$', account_number_last4):
@@ -104,12 +120,20 @@ def submit_payroll_details(
                 "US ABA routing number must be exactly 9 digits (e.g. '021000021')."
             )
     elif currency == "INR":
-        if not _IN_IFSC_RE.match(routing_or_ifsc_code.upper()):
-            raise ValueError(
-                "Indian IFSC code must be in format XXXX0YYYYYY "
-                "(4 alpha, '0', 6 alphanumeric — e.g. 'HDFC0001234')."
-            )
         routing_or_ifsc_code = routing_or_ifsc_code.upper()
+        if not _IN_IFSC_RE.match(routing_or_ifsc_code):
+            expected_prefix = _INDIAN_BANK_PREFIXES.get(bank_name.upper())
+            example = f"{expected_prefix}0001234" if expected_prefix else "HDFC0001234"
+            raise ValueError(
+                f"Indian IFSC code must be exactly 11 characters in format XXXX0YYYYYY "
+                f"(for example {example})."
+            )
+        expected_prefix = _INDIAN_BANK_PREFIXES.get(bank_name.upper())
+        if expected_prefix and not routing_or_ifsc_code.startswith(expected_prefix):
+            raise ValueError(
+                f"The IFSC code does not match {bank_name}. "
+                f"Use an IFSC beginning with {expected_prefix}0 (for example {expected_prefix}0001234)."
+            )
 
     # --- Tax status validation ---
     if tax_filing_status not in VALID_TAX_STATUSES:
@@ -165,4 +189,3 @@ def submit_payroll_details(
         f"HR will verify within 2 business days."
     )
     return result
-

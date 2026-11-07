@@ -12,8 +12,29 @@ CHROMA_PATH = DATA_DIR / "chroma"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")  # Optional OpenAI-compatible base URL (e.g. Ollama, Groq, vLLM)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GROK_API_KEY = os.getenv("GROK_API_KEY", "")
+LLM_API_KEY = GEMINI_API_KEY or GROK_API_KEY or OPENAI_API_KEY
+LLM_BASE_URL = os.getenv(
+    "LLM_BASE_URL",
+    (
+        "https://generativelanguage.googleapis.com/v1beta/openai/"
+        if GEMINI_API_KEY
+        else "https://api.x.ai/v1"
+        if GROK_API_KEY
+        else ""
+    ),
+)
+LLM_MODEL = os.getenv(
+    "LLM_MODEL",
+    (
+        "gemini-2.5-flash"
+        if GEMINI_API_KEY
+        else "grok-3-mini"
+        if GROK_API_KEY
+        else "gpt-4o-mini"
+    ),
+)
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 DEFAULT_EMPLOYEE_ID = "alex-chen"
 

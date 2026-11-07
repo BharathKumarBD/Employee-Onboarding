@@ -5,7 +5,7 @@
 ## 1. Executive Summary & Project Purpose
 
 ### What OnboardAI Does
-**OnboardAI** is an enterprise-grade autonomous AI onboarding assistant designed to streamline and automate the entire onboarding experience for newly hired employees at Acme Corp. 
+**OnboardAI** is an enterprise-grade autonomous AI onboarding assistant designed to streamline and automate the entire onboarding experience for newly hired employees at Dayforce.
 
 Instead of acting as a passive question-answering bot, OnboardAI operates as a **proactive, multi-agent workflow system** capable of:
 1. **Factual Policy Retrieval (RAG)**: Answering questions on company handbooks, IT security, benefits, code of conduct, and office facilities while providing exact Markdown source citations.
@@ -91,7 +91,7 @@ To maintain zero-dependency local demonstrability without requiring external ent
 1. **`slack_channels`**: Orchestrator prompt re-routed to search `it-setup.md` for official channels (`#general`, `#team-*`, `#random`).
 2. **`schedule_checkin`**: Disambiguated `schedule_checkin_tool` docstrings and added orchestrator rules prioritizing check-in booking over task creation.
 3. **`headquarters_location`**: Enriched office location search triggers, ensuring retrieval of the Helsinki headquarters from `employee-handbook.md`.
-4. **`it_helpdesk`**: Routed technical assistance to research mode to extract `it-help@acmecorp.com` and `#it-support` SLA details.
+4. **`it_helpdesk`**: Routed technical assistance to research mode to extract `it-help@dayforce.com` and `#it-support` SLA details.
 5. **`remote_policy_and_first_week`**: Mandated creation of $\ge 3$ tasks when employees query first-week plans.
 6. **`onboarding_buddy`**: Explicitly separated buddy meeting timing (retrieved from `onboarding-checklist.md`) from contact lookups.
 
@@ -332,4 +332,3 @@ Employee-Onboarding/
 │   └── test_api_contract.py       # Automated OpenAPI contract test suite
 └── docker-compose.yml             # Multi-container orchestration (Postgres, Backend, Frontend)
 ```
-
