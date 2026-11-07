@@ -22,6 +22,70 @@
         }
       }
     },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Login",
+        "description": "Authenticate employee or admin, returning a signed session token.",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "summary": "Get Me",
+        "description": "Return claims of the authenticated user.",
+        "operationId": "get_me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
     "/api/chat": {
       "post": {
         "summary": "Chat",
@@ -55,7 +119,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ]
       }
     },
     "/api/chat/stream": {
@@ -91,13 +163,29 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ]
       }
     },
     "/api/onboarding/{employee_id}/status": {
       "get": {
         "summary": "Onboarding Status",
         "operationId": "onboarding_status_api_onboarding__employee_id__status_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -135,6 +223,14 @@
       "post": {
         "summary": "Mark Task Complete",
         "operationId": "mark_task_complete_api_onboarding__employee_id__tasks__task_id__complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -201,6 +297,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -243,6 +342,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -292,6 +394,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -332,6 +437,14 @@
       "get": {
         "summary": "Get Equipment",
         "operationId": "get_equipment_api_onboarding__employee_id__equipment_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -369,6 +482,14 @@
       "post": {
         "summary": "Request New Equipment",
         "operationId": "request_new_equipment_api_onboarding__employee_id__equipment_request_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -412,10 +533,74 @@
         }
       }
     },
+    "/api/admin/equipment/{equipment_id}/status": {
+      "post": {
+        "summary": "Update Equipment Request Status",
+        "description": "Admin/IT approval endpoint to update equipment status (pending -> allocated / delivered).",
+        "operationId": "update_equipment_request_status_api_admin_equipment__equipment_id__status_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "equipment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Equipment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EquipmentStatusUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/onboarding/{employee_id}/trainings": {
       "get": {
         "summary": "Get Trainings",
         "operationId": "get_trainings_api_onboarding__employee_id__trainings_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -453,6 +638,14 @@
       "post": {
         "summary": "Complete Training Task",
         "operationId": "complete_training_task_api_onboarding__employee_id__trainings__training_id__complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -499,6 +692,14 @@
       "get": {
         "summary": "Get Assignments",
         "operationId": "get_assignments_api_onboarding__employee_id__assignments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "parameters": [
           {
             "name": "employee_id",
@@ -537,6 +738,9 @@
         "security": [
           {
             "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
           }
         ],
         "parameters": [
@@ -556,6 +760,262 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AssignmentUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/onboarding/{employee_id}/payroll": {
+      "get": {
+        "summary": "Get Payroll",
+        "operationId": "get_payroll_api_onboarding__employee_id__payroll_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "employee_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Employee Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/onboarding/{employee_id}/payroll/submit": {
+      "post": {
+        "summary": "Submit Payroll",
+        "operationId": "submit_payroll_api_onboarding__employee_id__payroll_submit_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "employee_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Employee Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayrollSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/onboarding/{employee_id}/documents": {
+      "get": {
+        "summary": "Get Documents",
+        "operationId": "get_documents_api_onboarding__employee_id__documents_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "employee_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Employee Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/onboarding/{employee_id}/documents/sign": {
+      "post": {
+        "summary": "Sign Employee Document",
+        "operationId": "sign_employee_document_api_onboarding__employee_id__documents_sign_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "employee_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Employee Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentSignRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/onboarding/{employee_id}/actions/execute": {
+      "post": {
+        "summary": "Execute Confirmed Action",
+        "description": "Execute a user-confirmed action proposal (equipment request, check-in scheduling).",
+        "operationId": "execute_confirmed_action_api_onboarding__employee_id__actions_execute_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          },
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "employee_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Employee Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionExecuteRequest"
               }
             }
           }
@@ -621,6 +1081,24 @@
   },
   "components": {
     "schemas": {
+      "ActionExecuteRequest": {
+        "properties": {
+          "action_type": {
+            "type": "string",
+            "title": "Action Type"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_type"
+        ],
+        "title": "ActionExecuteRequest"
+      },
       "AssignmentUpdateRequest": {
         "properties": {
           "manager_name": {
@@ -736,6 +1214,19 @@
         "type": "object",
         "title": "CompleteTaskRequest"
       },
+      "DocumentSignRequest": {
+        "properties": {
+          "document_code": {
+            "type": "string",
+            "title": "Document Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_code"
+        ],
+        "title": "DocumentSignRequest"
+      },
       "EquipmentRequest": {
         "properties": {
           "item_type": {
@@ -754,6 +1245,17 @@
         ],
         "title": "EquipmentRequest"
       },
+      "EquipmentStatusUpdateRequest": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "allocated"
+          }
+        },
+        "type": "object",
+        "title": "EquipmentStatusUpdateRequest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -766,6 +1268,90 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "LoginResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "user_id",
+          "role"
+        ],
+        "title": "LoginResponse"
+      },
+      "PayrollSubmitRequest": {
+        "properties": {
+          "bank_name": {
+            "type": "string",
+            "title": "Bank Name"
+          },
+          "account_number_last4": {
+            "type": "string",
+            "title": "Account Number Last4"
+          },
+          "routing_or_ifsc_code": {
+            "type": "string",
+            "title": "Routing Or Ifsc Code"
+          },
+          "tax_filing_status": {
+            "type": "string",
+            "title": "Tax Filing Status"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "EUR"
+          },
+          "withholding_allowances": {
+            "type": "integer",
+            "title": "Withholding Allowances",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "bank_name",
+          "account_number_last4",
+          "routing_or_ifsc_code",
+          "tax_filing_status"
+        ],
+        "title": "PayrollSubmitRequest"
       },
       "ValidationError": {
         "properties": {
@@ -809,6 +1395,10 @@
       }
     },
     "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
       "APIKeyHeader": {
         "type": "apiKey",
         "in": "header",

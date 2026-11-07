@@ -96,6 +96,52 @@ def init_db() -> None:
                 )
                 """
             )
+            # ── Phase 1: Payroll profiles ─────────────────────────────────────────
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS payroll_profiles (
+                    id SERIAL PRIMARY KEY,
+                    employee_id TEXT NOT NULL UNIQUE,
+                    bank_name TEXT,
+                    account_number_masked TEXT,
+                    routing_or_ifsc_code TEXT,
+                    currency TEXT NOT NULL DEFAULT 'EUR',
+                    tax_filing_status TEXT,
+                    withholding_allowances INTEGER DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'pending_submission',
+                    verified_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            # ── Phase 1: Employee documents ───────────────────────────────────────
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS employee_documents (
+                    id SERIAL PRIMARY KEY,
+                    employee_id TEXT NOT NULL,
+                    document_code TEXT NOT NULL,
+                    document_title TEXT NOT NULL,
+                    mandatory BOOLEAN NOT NULL DEFAULT TRUE,
+                    deadline_day INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending_signature',
+                    signed_at TIMESTAMPTZ,
+                    verified_by TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (employee_id, document_code)
+                )
+                """
+            )
+            # ── Phase 2: Worker profile matrix columns ────────────────────────────
+            cur.execute(
+                """
+                ALTER TABLE employee_assignments
+                ADD COLUMN IF NOT EXISTS worker_type TEXT NOT NULL DEFAULT 'fte',
+                ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT 'engineering',
+                ADD COLUMN IF NOT EXISTS onboarding_stage TEXT NOT NULL DEFAULT 'day_one'
+                """
+            )
         conn.commit()
 
 

@@ -23,6 +23,29 @@ class SearchResult:
 def _chunk_markdown(text: str, source: str, chunk_size: int = 500) -> list[dict]:
     sections = re.split(r"\n(?=#{1,3}\s)", text)
     chunks: list[dict] = []
+
+    # Derive location and category metadata from filename
+    src_lower = source.lower()
+    if "india" in src_lower:
+        location_tag = "india"
+    elif "usa" in src_lower:
+        location_tag = "usa"
+    elif "finland" in src_lower or "nordic" in src_lower:
+        location_tag = "finland"
+    else:
+        location_tag = "global"
+
+    if "benefit" in src_lower:
+        category_tag = "benefits"
+    elif "it-setup" in src_lower or "it_setup" in src_lower:
+        category_tag = "it"
+    elif "handbook" in src_lower:
+        category_tag = "handbook"
+    elif "compliance" in src_lower or "checklist" in src_lower:
+        category_tag = "compliance"
+    else:
+        category_tag = "general"
+
     for section in sections:
         section = section.strip()
         if not section:
@@ -30,7 +53,12 @@ def _chunk_markdown(text: str, source: str, chunk_size: int = 500) -> list[dict]
         for i in range(0, len(section), chunk_size):
             chunk = section[i : i + chunk_size].strip()
             if chunk:
-                chunks.append({"content": chunk, "source": source})
+                chunks.append({
+                    "content": chunk,
+                    "source": source,
+                    "location": location_tag,
+                    "category": category_tag,
+                })
     return chunks
 
 
@@ -90,7 +118,7 @@ def ensure_index() -> None:
     collection.add(
         ids=[f"chunk-{i}" for i in range(len(all_chunks))],
         documents=[c["content"] for c in all_chunks],
-        metadatas=[{"source": c["source"]} for c in all_chunks],
+        metadatas=[{"source": c["source"], "location": c["location"], "category": c["category"]} for c in all_chunks],
     )
     _indexed = True
 
@@ -143,7 +171,6 @@ def _fallback_keyword_search(query: str, top_k: int = 3) -> list[SearchResult]:
         for score, c in scored[:top_k]
     ]
 
-
 def format_search_results(results: list[SearchResult]) -> str:
     if not results:
         return "No relevant handbook sections found."
@@ -155,25 +182,57 @@ def format_search_results(results: list[SearchResult]) -> str:
 
 
 def search_handbook_with_location(query: str, location: str | None = None, top_k: int = 4) -> list[SearchResult]:
-    """Search handbook with location-aware filtering. Returns location-specific results first."""
+    """Search handbook with location-aware filtering using ChromaDB native metadata.
+
+    Applies a metadata ``where`` filter so only chunks tagged for the requested
+    location (or 'global') are returned, eliminating cross-region contamination.
+    Falls back to query enrichment when native filtering is unavailable.
+    """
     location_map = {
+        "india": "india",
+        "usa": "usa",
+        "united states": "usa",
+        "us": "usa",
+        "finland": "finland",
+        "sweden": "finland",
+        "germany": "global",
+        "europe": "global",
+    }
+    loc_key = location_map.get(location.lower(), "global") if location else None
+
+    # Also enrich the query text for better semantic retrieval
+    query_enrichment_map = {
         "india": "India",
         "usa": "United States USA America",
         "finland": "Finland Helsinki",
-        "sweden": "Sweden Stockholm",
-        "germany": "Germany Berlin",
     }
-
     enriched_query = query
-    if location:
-        location_lower = location.lower()
-        if location_lower in location_map:
-            enriched_query = f"{query} {location_map[location_lower]}"
+    if loc_key and loc_key in query_enrichment_map:
+        enriched_query = f"{query} {query_enrichment_map[loc_key]}"
 
     try:
         ensure_index()
         collection = _get_collection()
-        results = collection.query(query_texts=[enriched_query], n_results=min(top_k, collection.count() or top_k))
+        n = min(top_k, collection.count() or top_k)
+
+        # Attempt native metadata filter to avoid cross-region results
+        where_filter: dict | None = None
+        if loc_key and loc_key != "global":
+            where_filter = {"$or": [{"location": loc_key}, {"location": "global"}]}
+
+        try:
+            if where_filter:
+                results = collection.query(
+                    query_texts=[enriched_query],
+                    n_results=n,
+                    where=where_filter,
+                )
+            else:
+                results = collection.query(query_texts=[enriched_query], n_results=n)
+        except Exception:
+            # Metadata filter not supported (e.g. older Chroma or old index without location tag)
+            # fall back to unfiltered query
+            results = collection.query(query_texts=[enriched_query], n_results=n)
 
         search_results: list[SearchResult] = []
         if not results["documents"] or not results["documents"][0]:

@@ -218,3 +218,33 @@
     cites_source: location-usa.md
     contains: ["3"]
     tools_called: [search_handbook_tool]
+
+
+# ── Phase 5: Extended scenarios (33-36) ────────────────────────────────────
+
+- id: payroll_setup_inquiry
+  input: "How do I set up my direct deposit and bank details for salary disbursement?"
+  expect:
+    cites_source: employee-handbook.md
+    contains: ["direct deposit", "bank"]
+    tools_called: [search_handbook_tool]
+
+- id: document_signing_i9
+  input: "What is the legal deadline for completing my Form I-9 document verification?"
+  expect:
+    cites_source: location-usa.md
+    contains: ["3", "I-9"]
+    tools_called: [search_handbook_tool]
+
+- id: contractor_vs_fte_benefits
+  input: "Are contractors eligible for the company 401(k) matching program and dental insurance?"
+  expect:
+    contains: ["contractor", "not eligible"]
+    tools_called: [search_handbook_tool]
+
+- id: compliance_prerequisite_blocking
+  input: "Can I request production AWS credentials and GitHub write access today?"
+  expect:
+    cites_source: it-setup.md
+    contains: ["security", "training"]
+    tools_called: [search_handbook_tool]

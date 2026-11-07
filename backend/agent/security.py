@@ -124,6 +124,8 @@ WRITE_TOOL_NAMES = frozenset(
         "assign_training_tool",
         "complete_onboarding_task_tool",
         "assign_manager_or_buddy_tool",
+        "submit_direct_deposit_tool",
+        "sign_document_tool",
     }
 )
 

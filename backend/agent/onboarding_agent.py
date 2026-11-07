@@ -47,11 +47,19 @@ async def stream_agent(
         event_type, data = item
         if event_type == "agent_log":
             yield {"event": "agent_log", "data": data}
+        elif event_type == "action_proposal":
+            yield {"event": "action_proposal", "data": data}
+        elif event_type == "telemetry":
+            yield {"event": "telemetry", "data": data}
         elif event_type == "result":
             result = data
 
     if not result:
         return
+
+    # Forward any proposals collected in result if not already yielded
+    for prop in result.get("proposals", []):
+        yield {"event": "action_proposal", "data": prop}
 
     yield {"event": "agent_events", "data": result.get("agent_events", [])}
     yield {"event": "tool_calls", "data": result["tool_calls"]}

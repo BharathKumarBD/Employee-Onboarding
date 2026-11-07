@@ -464,6 +464,484 @@ def test_audit_logging_structure():
     print("✅ test_audit_logging_structure passed")
 
 
+# 16. Regression Test: Issue 1 - _require_admin() Rejects Empty ADMIN_API_KEY
+def test_issue1_require_admin_rejects_empty_key():
+    from backend.app.main import _require_admin
+    from fastapi import HTTPException
+    import shared.config as config
+
+    old_key = config.ADMIN_API_KEY
+    try:
+        # 1. When ADMIN_API_KEY is empty, _require_admin must REJECT, never allow
+        config.ADMIN_API_KEY = ""
+        try:
+            _require_admin("any-key", user=None)
+            assert False, "Should raise 403 when ADMIN_API_KEY is empty"
+        except HTTPException as e:
+            assert e.status_code == 403
+            assert "ADMIN_API_KEY must be configured" in str(e.detail)
+
+        try:
+            _require_admin(None, user=None)
+            assert False, "Should raise 403 when ADMIN_API_KEY is empty and no key supplied"
+        except HTTPException as e:
+            assert e.status_code == 403
+
+        # 2. When ADMIN_API_KEY is set, wrong key is rejected, correct key is accepted
+        config.ADMIN_API_KEY = "super-secret-admin-pass"
+        try:
+            _require_admin("wrong-pass", user=None)
+            assert False, "Should raise 403 for wrong key"
+        except HTTPException as e:
+            assert e.status_code == 403
+
+        # Correct key must pass without exception
+        _require_admin("super-secret-admin-pass", user=None)
+
+        # Authenticated admin user must pass even without header key
+        _require_admin(None, user={"sub": "admin", "role": "admin"})
+
+    finally:
+        config.ADMIN_API_KEY = old_key
+
+    print("✅ test_issue1_require_admin_rejects_empty_key passed")
+
+
+# 17. Regression Test: Issues 2 & 3 - Employee Authentication & Verified Ownership Authorization
+def test_issue2_and_3_employee_endpoint_auth_and_ownership():
+    from shared.auth import require_employee_access, get_current_user
+    from fastapi import HTTPException
+
+    # 1. Unauthenticated request (user is None) must raise 401
+    try:
+        require_employee_access("alex-chen", None)
+        assert False, "Unauthenticated request should raise 401"
+    except HTTPException as e:
+        assert e.status_code == 401
+        assert "Authentication required" in str(e.detail)
+
+    # 2. Cross-employee unauthorized access (IDOR) must raise 403
+    attacker_user = {"sub": "attacker-id", "role": "employee"}
+    try:
+        require_employee_access("victim-alex-chen", attacker_user)
+        assert False, "Cross-employee access should raise 403"
+    except HTTPException as e:
+        assert e.status_code == 403
+        assert "Access forbidden" in str(e.detail)
+
+    # 3. Legitimate employee accessing own data must succeed
+    legit_user = {"sub": "alex-chen", "role": "employee"}
+    try:
+        require_employee_access("alex-chen", legit_user)
+    except HTTPException:
+        assert False, "Legitimate employee should access own record without exception"
+
+    # 4. Administrator accessing employee record must succeed
+    admin_user = {"sub": "admin-person", "role": "admin"}
+    try:
+        require_employee_access("alex-chen", admin_user)
+    except HTTPException:
+        assert False, "Admin should access employee record without exception"
+
+    print("✅ test_issue2_and_3_employee_endpoint_auth_and_ownership passed")
+
+
+# 18. Regression Test: Issue 4 - _get_client_ip() Rejects Spoofed X-Forwarded-For
+def test_issue4_client_ip_spoofing_defense():
+    from backend.app.main import _get_client_ip
+    from unittest.mock import MagicMock
+
+    # 1. Untrusted direct client IP tries to spoof X-Forwarded-For
+    mock_untrusted_req = MagicMock()
+    mock_untrusted_req.client.host = "203.0.113.195"  # Public attacker IP
+    mock_untrusted_req.headers.get.side_effect = lambda h: "127.0.0.1" if h == "X-Forwarded-For" else None
+
+    # Must ignore X-Forwarded-For and return the untrusted direct IP
+    extracted_ip = _get_client_ip(mock_untrusted_req)
+    assert extracted_ip == "203.0.113.195", f"Expected direct IP, got {extracted_ip}"
+
+    # 2. Trusted proxy (127.0.0.1) forwards client IP
+    mock_trusted_req = MagicMock()
+    mock_trusted_req.client.host = "127.0.0.1"
+    mock_trusted_req.headers.get.side_effect = lambda h: "198.51.100.42, 127.0.0.1" if h == "X-Forwarded-For" else None
+
+    # Should trust X-Forwarded-For from trusted reverse proxy
+    extracted_trusted_ip = _get_client_ip(mock_trusted_req)
+    assert extracted_trusted_ip == "198.51.100.42", f"Expected forwarded IP, got {extracted_trusted_ip}"
+
+    print("✅ test_issue4_client_ip_spoofing_defense passed")
+
+
+# 19. Regression Test: Issue 5 - CORS Disallows Wildcard Origins with Credentials
+def test_issue5_cors_credentials_wildcard_prevention():
+    from backend.app.main import app
+    from starlette.middleware.cors import CORSMiddleware
+
+    cors_middlewares = [m for m in app.user_middleware if m.cls == CORSMiddleware]
+    assert len(cors_middlewares) > 0, "CORSMiddleware should be installed"
+
+    for m in cors_middlewares:
+        # Starlette stores Middleware kwargs under .kwargs (not .options)
+        mw_opts = m.kwargs if hasattr(m, "kwargs") else getattr(m, "options", {})
+        allow_origins = mw_opts.get("allow_origins", [])
+        allow_credentials = mw_opts.get("allow_credentials", False)
+
+        # If credentials are allowed, origins must NOT be wildcard "*"
+        if allow_credentials:
+            assert "*" not in allow_origins, (
+                f"Security violation: CORS has allow_credentials=True with allow_origins={allow_origins}. "
+                "Wildcard origin with credentials violates browser security."
+            )
+
+    print("✅ test_issue5_cors_credentials_wildcard_prevention passed")
+
+
+# 20. Regression Test: Issue 6 - _audit_log() Robust Error Logging & Return Status
+def test_issue6_audit_log_error_handling():
+    from backend.app.main import _audit_log, audit_logger
+    from unittest.mock import patch, MagicMock
+
+    # 1. When DB write fails, it must NOT silently swallow; it must log an error and return False
+    with patch("shared.db.get_connection", side_effect=RuntimeError("Database connection lost")), \
+         patch.object(audit_logger, "error") as mock_log_error:
+        
+        result = _audit_log("test_failure_action", employee_id="emp_1", performed_by="tester")
+        assert result is False, "Expected _audit_log to return False on failure"
+        assert mock_log_error.called, "Expected audit_logger.error to be called on failure"
+        call_msg = mock_log_error.call_args[0][0]
+        assert "AUDIT LOG STORAGE FAILURE" in call_msg
+
+    # 2. When DB write succeeds, it returns True
+    mock_cursor = MagicMock()
+    mock_conn = MagicMock()
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+    with patch("shared.db.get_connection", return_value=mock_conn):
+        success_result = _audit_log("test_success_action", employee_id="emp_1", performed_by="tester")
+        assert success_result is True, "Expected _audit_log to return True on success"
+        assert mock_cursor.execute.called
+
+    print("✅ test_issue6_audit_log_error_handling passed")
+
+
+# 21. Phase 1: Payroll PII Masking and Validation Tests
+def test_phase1_payroll_pii_and_validation():
+    from shared.payroll import submit_payroll_details, get_payroll_profile
+    from unittest.mock import patch, MagicMock
+
+    # 1. PII Safety: Reject full account numbers (> 4 digits)
+    try:
+        submit_payroll_details(
+            employee_id="test_emp",
+            bank_name="Acme Bank",
+            account_number_last4="123456789012",  # VIOLATION: Full account number
+            routing_or_ifsc_code="021000021",
+            tax_filing_status="W4_SINGLE",
+            currency="USD",
+        )
+        assert False, "Should have rejected full bank account number"
+    except ValueError as exc:
+        assert "Only the last 4 digits" in str(exc)
+
+    # 2. Reject non-numeric last4
+    try:
+        submit_payroll_details(
+            employee_id="test_emp",
+            bank_name="Acme Bank",
+            account_number_last4="489a",
+            routing_or_ifsc_code="021000021",
+            tax_filing_status="W4_SINGLE",
+            currency="USD",
+        )
+        assert False, "Should have rejected non-numeric account_number_last4"
+    except ValueError as exc:
+        assert "Only the last 4 digits" in str(exc)
+
+    # 3. US Routing number validation (must be 9 digits)
+    try:
+        submit_payroll_details(
+            employee_id="test_emp",
+            bank_name="Acme Bank",
+            account_number_last4="4892",
+            routing_or_ifsc_code="12345",  # VIOLATION: Not 9 digits
+            tax_filing_status="W4_SINGLE",
+            currency="USD",
+        )
+        assert False, "Should have rejected invalid US routing number"
+    except ValueError as exc:
+        assert "9 digits" in str(exc)
+
+    # 4. Indian IFSC code validation
+    try:
+        submit_payroll_details(
+            employee_id="test_emp",
+            bank_name="Acme Bank",
+            account_number_last4="4892",
+            routing_or_ifsc_code="INVALID_IFSC",  # VIOLATION: Invalid IFSC format
+            tax_filing_status="INDIA_NEW_REGIME",
+            currency="INR",
+        )
+        assert False, "Should have rejected invalid Indian IFSC"
+    except ValueError as exc:
+        assert "IFSC" in str(exc)
+
+    # 5. Unsupported currency validation
+    try:
+        submit_payroll_details(
+            employee_id="test_emp",
+            bank_name="Acme Bank",
+            account_number_last4="4892",
+            routing_or_ifsc_code="021000021",
+            tax_filing_status="W4_SINGLE",
+            currency="BITCOIN",  # VIOLATION
+        )
+        assert False, "Should have rejected unsupported currency"
+    except ValueError as exc:
+        assert "Unsupported currency" in str(exc)
+
+    # 6. Valid submission stores masked account number
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = {
+        "id": 1,
+        "employee_id": "test_emp",
+        "bank_name": "JPMorgan Chase",
+        "account_number_masked": "•••• 4892",
+        "routing_or_ifsc_code": "021000021",
+        "currency": "USD",
+        "tax_filing_status": "W4_SINGLE",
+        "withholding_allowances": 0,
+        "status": "submitted",
+        "created_at": "2026-11-07T00:00:00Z",
+        "updated_at": "2026-11-07T00:00:00Z",
+    }
+    mock_conn = MagicMock()
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+    with patch("shared.payroll._ensure_db"), patch("shared.payroll.get_connection", return_value=mock_conn):
+        result = submit_payroll_details(
+            employee_id="test_emp",
+            bank_name="JPMorgan Chase",
+            account_number_last4="4892",
+            routing_or_ifsc_code="021000021",
+            tax_filing_status="W4_SINGLE",
+            currency="USD",
+        )
+        assert result["account_number_masked"] == "•••• 4892"
+        assert result["status"] == "submitted"
+        assert "successfully" in result["message"]
+
+    print("✅ test_phase1_payroll_pii_and_validation passed")
+
+
+# 22. Phase 1: Document Vault Auto-Seeding & Electronic Signatures
+def test_phase1_documents_auto_seeding_and_signing():
+    from shared.documents import list_employee_documents, sign_document
+    from unittest.mock import patch, MagicMock
+
+    # 1. Location-based document auto-seeding templates
+    # When no records exist in DB, it auto-seeds based on location
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = []  # No existing docs in DB
+    mock_cursor.fetchone.side_effect = [
+        {"id": 1, "employee_id": "emp_usa", "document_code": "nda", "document_title": "NDA", "mandatory": True, "deadline_day": 1, "status": "pending_signature", "signed_at": None, "verified_by": None, "created_at": "2026-11-07T00:00:00Z"},
+        {"id": 2, "employee_id": "emp_usa", "document_code": "handbook_ack", "document_title": "Handbook Ack", "mandatory": True, "deadline_day": 2, "status": "pending_signature", "signed_at": None, "verified_by": None, "created_at": "2026-11-07T00:00:00Z"},
+        {"id": 3, "employee_id": "emp_usa", "document_code": "i9_verification", "document_title": "Form I-9", "mandatory": True, "deadline_day": 3, "status": "pending_signature", "signed_at": None, "verified_by": None, "created_at": "2026-11-07T00:00:00Z"},
+        {"id": 4, "employee_id": "emp_usa", "document_code": "w4", "document_title": "Form W-4", "mandatory": True, "deadline_day": 5, "status": "pending_signature", "signed_at": None, "verified_by": None, "created_at": "2026-11-07T00:00:00Z"},
+    ]
+    mock_conn = MagicMock()
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+    with patch("shared.documents._ensure_db"), patch("shared.documents.get_connection", return_value=mock_conn):
+        docs = list_employee_documents("emp_usa", location="USA")
+        doc_codes = [d["document_code"] for d in docs]
+        assert "i9_verification" in doc_codes
+        assert "w4" in doc_codes
+
+    # 2. Electronic signature sets status='signed' and signed_at timestamp
+    mock_cursor_sign = MagicMock()
+    mock_cursor_sign.fetchone.return_value = {
+        "id": 3,
+        "employee_id": "emp_usa",
+        "document_code": "i9_verification",
+        "document_title": "Form I-9",
+        "mandatory": True,
+        "deadline_day": 3,
+        "status": "signed",
+        "signed_at": "2026-11-07T12:00:00+00:00",
+        "verified_by": None,
+        "created_at": "2026-11-07T00:00:00Z",
+    }
+    mock_conn_sign = MagicMock()
+    mock_conn_sign.__enter__.return_value = mock_conn_sign
+    mock_conn_sign.cursor.return_value.__enter__.return_value = mock_cursor_sign
+
+    with patch("shared.documents._ensure_db"), patch("shared.documents.get_connection", return_value=mock_conn_sign):
+        signed = sign_document("emp_usa", "i9_verification")
+        assert signed is not None
+        assert signed["status"] == "signed"
+        assert signed["signed_at"] is not None
+        assert "electronically signed" in signed["message"]
+
+    print("✅ test_phase1_documents_auto_seeding_and_signing passed")
+
+
+# 23. Phase 2: Multi-Dimensional Worker Profile Matrix
+def test_phase2_worker_matrix_and_assignments():
+    from shared.assignments import get_employee_assignment, set_employee_assignment
+    from unittest.mock import patch, MagicMock
+
+    # 1. Invalid worker_type rejected
+    try:
+        set_employee_assignment("emp_1", worker_type="freelancer_invalid")
+        assert False, "Should reject invalid worker_type"
+    except ValueError as exc:
+        assert "worker_type" in str(exc)
+
+    # 2. Invalid department rejected
+    try:
+        set_employee_assignment("emp_1", department="invalid_dept")
+        assert False, "Should reject invalid department"
+    except ValueError as exc:
+        assert "department" in str(exc)
+
+    # 3. Default demo profile has worker_type='fte', department='engineering', stage='day_one'
+    mock_cursor = MagicMock()
+    mock_cursor.fetchone.return_value = None  # No explicit row
+    mock_conn = MagicMock()
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+    with patch("shared.assignments.ensure_db"), patch("shared.assignments.get_connection", return_value=mock_conn):
+        default_profile = get_employee_assignment("alex-chen")
+        assert default_profile["worker_type"] == "fte"
+        assert default_profile["department"] == "engineering"
+        assert default_profile["onboarding_stage"] == "day_one"
+
+    print("✅ test_phase2_worker_matrix_and_assignments passed")
+
+
+# 24. Phase 2: Deterministic Compliance Engine
+def test_phase2_deterministic_compliance_engine():
+    from shared.compliance import ComplianceEngine
+    from unittest.mock import patch
+
+    # 1. Production / cloud resource requires Security Training completion
+    with patch("shared.training.list_training_assignments", return_value=[
+        {"training_name": "Security Awareness Training", "status": "pending"},
+    ]):
+        allowed, reason = ComplianceEngine.check_system_access_prerequisites("emp_1", "AWS production console")
+        assert not allowed
+        assert "Security Awareness Training" in reason
+
+    # 2. Once completed, access is permitted
+    with patch("shared.training.list_training_assignments", return_value=[
+        {"training_name": "Security Awareness Training", "status": "completed"},
+    ]):
+        allowed, reason = ComplianceEngine.check_system_access_prerequisites("emp_1", "AWS production console")
+        assert allowed
+        assert reason == ""
+
+    # 3. Non-gated resource is allowed unconditionally
+    allowed, reason = ComplianceEngine.check_system_access_prerequisites("emp_1", "Slack general channel")
+    assert allowed
+
+    # 4. Timeline validation (days 1-90)
+    assert ComplianceEngine.validate_action_timeline(1)[0] is True
+    assert ComplianceEngine.validate_action_timeline(90)[0] is True
+    assert ComplianceEngine.validate_action_timeline(0)[0] is False
+    assert ComplianceEngine.validate_action_timeline(91)[0] is False
+    assert ComplianceEngine.validate_action_timeline("abc")[0] is False
+
+    # 5. Worker type restriction checks
+    fte_rules = ComplianceEngine.get_worker_type_restrictions("fte")
+    assert fte_rules["healthcare"] is True
+    assert fte_rules["pension_401k"] is True
+
+    contractor_rules = ComplianceEngine.get_worker_type_restrictions("contractor")
+    assert contractor_rules["healthcare"] is False
+    assert contractor_rules["pension_401k"] is False
+    assert "not eligible" in contractor_rules["notes"].lower()
+
+    print("✅ test_phase2_deterministic_compliance_engine passed")
+
+
+# 25. Phase 3: HITL Action Proposal Protocol & Endpoint
+def test_phase3_hitl_action_proposal_and_execution():
+    import json
+    from backend.agent.tools import build_workflow_tools
+    from backend.app.main import app, ActionExecuteRequest
+    from starlette.testclient import TestClient
+
+    tools = {t.__name__ if hasattr(t, "__name__") else getattr(t, "name", str(t)): t for t in build_workflow_tools("alex-chen")}
+
+    # 1. Equipment request returns structured proposal
+    req_tool = tools["request_equipment_tool"]
+    res_raw = req_tool(item_type="monitor", item_name="Dell UltraSharp 27\" 4K")
+    res = json.loads(res_raw)
+    assert res.get("status") == "proposed"
+    assert res.get("action_type") == "request_equipment"
+    assert "action_id" in res
+    assert "UltraSharp" in res.get("title", "")
+
+    # 2. Checkin scheduling returns structured proposal
+    checkin_tool = tools["schedule_checkin_tool"]
+    c_raw = checkin_tool(day=7, topic="Goals and expectations")
+    c_res = json.loads(c_raw)
+    assert c_res.get("status") == "proposed"
+    assert c_res.get("action_type") == "schedule_checkin"
+    assert c_res.get("details", {}).get("day") == 7
+
+    # 3. Write protection blocks proposal on suspected injection
+    blocked_tools = {t.__name__ if hasattr(t, "__name__") else getattr(t, "name", str(t)): t for t in build_workflow_tools("alex-chen", injection_suspected=True)}
+    blocked_res = blocked_tools["request_equipment_tool"](item_type="laptop", item_name="MacBook")
+    assert "blocked" in blocked_res.lower()
+
+    print("✅ test_phase3_hitl_action_proposal_and_execution passed")
+
+
+# 26. Phase 4: Telemetry Accounting & RAG Native Partitioning
+def test_phase4_telemetry_and_rag_partitioning():
+    from backend.agent.telemetry import TelemetryTracker
+    from shared.rag import _chunk_markdown
+
+    # 1. Telemetry accounting
+    tracker = TelemetryTracker()
+    trace1 = tracker.start_node("orchestrator")
+    tracker.record_tokens(trace1, prompt=1000, completion=200)
+    trace1.finish()
+
+    trace2 = tracker.start_node("workflow_specialist")
+    tracker.record_tokens(trace2, prompt=500, completion=100)
+    trace2.finish()
+
+    d = tracker.to_dict()
+    assert d["total_tokens"] == 1800
+    assert d["total_cost_usd"] > 0
+    assert len(d["nodes"]) == 2
+    assert "⚡ Trace:" in tracker.summary_label()
+
+    # 2. RAG Chunking attaches location and category metadata
+    chunks = _chunk_markdown(
+        "# Holidays in India\nDiwali is a public holiday in India.",
+        source="location-india.md",
+    )
+    assert len(chunks) > 0
+    assert chunks[0]["location"] == "india"
+    assert chunks[0]["source"] == "location-india.md"
+
+    usa_chunks = _chunk_markdown(
+        "# USA Benefits\nAcme Corp USA health insurance details.",
+        source="location-usa.md",
+    )
+    assert len(usa_chunks) > 0
+    assert usa_chunks[0]["location"] == "usa"
+
+    print("✅ test_phase4_telemetry_and_rag_partitioning passed")
+
+
 if __name__ == "__main__":
     print("\n=== Running Employee-Onboarding Improvement Tests ===")
     test_security_injection_detection()
@@ -481,4 +959,15 @@ if __name__ == "__main__":
     test_equipment_status_workflow()
     test_enhanced_prompt_injection_patterns()
     test_audit_logging_structure()
-    print("\n🎉 ALL 15 TEST SUITES PASSED PERFECTLY!\n")
+    test_issue1_require_admin_rejects_empty_key()
+    test_issue2_and_3_employee_endpoint_auth_and_ownership()
+    test_issue4_client_ip_spoofing_defense()
+    test_issue5_cors_credentials_wildcard_prevention()
+    test_issue6_audit_log_error_handling()
+    test_phase1_payroll_pii_and_validation()
+    test_phase1_documents_auto_seeding_and_signing()
+    test_phase2_worker_matrix_and_assignments()
+    test_phase2_deterministic_compliance_engine()
+    test_phase3_hitl_action_proposal_and_execution()
+    test_phase4_telemetry_and_rag_partitioning()
+    print("\n🎉 ALL 26 TEST SUITES (INCLUDING ALL 5 NEW PLAYBOOK PHASES) PASSED PERFECTLY!\n")

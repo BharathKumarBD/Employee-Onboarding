@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import uuid
 from typing import Any
 
 from langchain_core.tools import tool
 
 from agent.security import MAX_TASKS_PER_REQUEST
 from shared.assignments import get_employee_assignment, set_employee_assignment
+from shared.documents import list_employee_documents, sign_document
 from shared.equipment import get_equipment_allocations, request_equipment
+from shared.payroll import get_payroll_profile, submit_payroll_details
 from shared.rag import format_search_results, search_handbook, search_handbook_with_location
 from shared.tasks import (
     complete_task,
@@ -102,19 +105,33 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         """Schedule a manager or HR check-in for a specific onboarding day. 
         Use this tool — NOT create_onboarding_task_tool — when the user explicitly says 
         'schedule a check-in', 'book a meeting', 'set up a check-in', 'meet with manager on day X', 
-        or similar scheduling requests. The day parameter is the onboarding day number (1-90)."""
+        or similar scheduling requests. The day parameter is the onboarding day number (1-90).
+        Returns a HITL action proposal for the user to confirm before the meeting is booked."""
         if injection_suspected:
             return WRITE_BLOCKED_MSG
         try:
             day_int = int(day)
+            if day_int < 1 or day_int > 90:
+                return "Invalid day: must be an integer between 1 and 90."
         except (ValueError, TypeError):
             return "Invalid day: must be an integer between 1 and 90."
         clean_topic = str(topic).strip()
-        try:
-            result = schedule_checkin(employee_id, day_int, clean_topic)
-        except ValueError as exc:
-            return f"Invalid check-in: {exc}"
-        return json.dumps(result, default=str)
+        if not clean_topic:
+            return "Invalid check-in: Topic cannot be empty"
+        # Phase 3 HITL: return a proposal for user confirmation
+        action_id = f"act_{uuid.uuid4().hex[:8]}"
+        proposal = {
+            "status": "proposed",
+            "action_type": "schedule_checkin",
+            "action_id": action_id,
+            "title": f"Schedule Check-in: Day {day_int} — {clean_topic}",
+            "details": {
+                "day": day_int,
+                "topic": clean_topic,
+                "employee_id": employee_id,
+            },
+        }
+        return json.dumps(proposal, default=str)
 
     @tool
     def get_equipment_status_tool() -> str:
@@ -130,14 +147,34 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         """Request equipment allocation for the employee. 
         item_type must be one of: laptop, id_card, monitor, keyboard, mouse, headset, desk_phone, other.
         item_name is the specific item description (e.g. 'MacBook Pro 14-inch M3').
-        Use when employee asks to request or needs equipment."""
+        Use when employee asks to request or needs equipment.
+        Returns a HITL action proposal — the user must approve before the request is submitted."""
         if injection_suspected:
             return WRITE_BLOCKED_MSG
-        try:
-            result = request_equipment(employee_id, item_type, item_name)
-        except ValueError as exc:
-            return f"Invalid equipment request: {exc}"
-        return json.dumps(result, default=str)
+        clean_name = str(item_name).strip()
+        if not clean_name:
+            return "Invalid equipment request: Item name cannot be empty"
+        if len(clean_name) > 200:
+            return "Invalid equipment request: Item name too long (max 200 chars)"
+        clean_type = str(item_type).strip().lower()
+        from shared.equipment import VALID_ITEM_TYPES
+        if clean_type not in VALID_ITEM_TYPES:
+            clean_type = "other"
+        # Phase 3 HITL: return a proposal for user confirmation
+        action_id = f"act_{uuid.uuid4().hex[:8]}"
+        proposal = {
+            "status": "proposed",
+            "action_type": "request_equipment",
+            "action_id": action_id,
+            "title": f"Equipment Request: {clean_name}",
+            "details": {
+                "item_type": clean_type,
+                "item_name": clean_name,
+                "approver": "IT Helpdesk",
+                "employee_id": employee_id,
+            },
+        }
+        return json.dumps(proposal, default=str)
 
     @tool
     def list_training_assignments_tool() -> str:
@@ -193,6 +230,72 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         )
         return json.dumps(result, default=str)
 
+    # ── Phase 1: Payroll & Document tools ─────────────────────────────────
+
+    @tool
+    def get_payroll_status_tool() -> str:
+        """Get the current payroll/direct-deposit setup status for the employee.
+        Use when asked about payroll, bank details, direct deposit, or salary setup."""
+        profile = get_payroll_profile(employee_id)
+        return json.dumps(profile, default=str)
+
+    @tool
+    def submit_direct_deposit_tool(
+        bank_name: str,
+        account_number_last4: str,
+        routing_or_ifsc_code: str,
+        tax_regime_or_w4: str,
+    ) -> str:
+        """Submit direct-deposit bank details and tax filing status for the employee.
+        Only the LAST 4 DIGITS of the account number are accepted (for PII safety).
+        routing_or_ifsc_code: US 9-digit ABA routing number for USD, Indian IFSC for INR.
+        tax_regime_or_w4: e.g. 'W4_SINGLE', 'INDIA_NEW_REGIME', 'EU_STANDARD'."""
+        if injection_suspected:
+            return WRITE_BLOCKED_MSG
+        try:
+            # Infer currency from tax status if possible
+            tax_upper = str(tax_regime_or_w4).strip().upper()
+            if tax_upper.startswith("W4"):
+                currency = "USD"
+            elif tax_upper.startswith("INDIA"):
+                currency = "INR"
+            else:
+                currency = "EUR"
+            result = submit_payroll_details(
+                employee_id,
+                bank_name=str(bank_name).strip(),
+                account_number_last4=str(account_number_last4).strip(),
+                routing_or_ifsc_code=str(routing_or_ifsc_code).strip(),
+                tax_filing_status=tax_upper,
+                currency=currency,
+            )
+            return json.dumps(result, default=str)
+        except ValueError as exc:
+            return f"Payroll submission error: {exc}"
+
+    @tool
+    def list_pending_documents_tool() -> str:
+        """List all regulatory documents the employee needs to sign (NDA, I-9, handbook, etc.).
+        Documents are auto-seeded based on the employee's location."""
+        try:
+            assignment = get_employee_assignment(employee_id)
+            location = assignment.get("location", "Finland")
+        except Exception:
+            location = "Finland"
+        docs = list_employee_documents(employee_id, location=location)
+        return json.dumps(docs, default=str)
+
+    @tool
+    def sign_document_tool(document_code: str) -> str:
+        """Electronically sign a regulatory document by its code (e.g. 'nda', 'i9_verification', 'handbook_ack').
+        The document must exist for the employee (call list_pending_documents_tool first)."""
+        if injection_suspected:
+            return WRITE_BLOCKED_MSG
+        result = sign_document(employee_id, document_code)
+        if not result:
+            return f"Document '{document_code}' not found. Use list_pending_documents_tool to see available documents."
+        return json.dumps(result, default=str)
+
     return [
         create_onboarding_task_tool,
         list_onboarding_tasks_tool,
@@ -205,6 +308,10 @@ def build_workflow_tools(employee_id: str, injection_suspected: bool = False):
         assign_training_tool,
         get_manager_and_buddy_tool,
         assign_manager_or_buddy_tool,
+        get_payroll_status_tool,
+        submit_direct_deposit_tool,
+        list_pending_documents_tool,
+        sign_document_tool,
     ]
 
 

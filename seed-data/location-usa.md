@@ -83,3 +83,30 @@ In addition to global PTO (25 days/year):
 For USA-specific HR queries: **usa-hr@acmecorp.com**
 Benefits questions: **benefits-usa@acmecorp.com**
 Payroll queries: **usa-payroll@acmecorp.com**
+
+
+## Worker Classification: FTE vs. Contractor (USA)
+
+### Full-Time Employees (W-2)
+- Receive Form W-2 for tax reporting.
+- Eligible for all company benefits: health insurance, dental, vision, 401(k) matching, PTO (25 days), equity/stock options.
+- Must complete Form I-9 (Employment Eligibility Verification) within 3 business days of start date.
+- Must complete Form W-4 (Employee's Withholding Certificate) by Day 5.
+- Equipment: company-provided laptop and peripherals per department tier.
+
+### Independent Contractors (1099/B2B)
+- Receive Form 1099-NEC; responsible for self-employment taxes.
+- **NOT eligible** for: company health insurance, dental, vision, 401(k) matching, PTO, equity/stock options, or company-sponsored retirement plans.
+- Must use BYOD (Bring Your Own Device) or company-provided VDI (Virtual Desktop Infrastructure).
+- Submit invoices to Accounts Payable (ap@acmecorp.com) on a monthly basis.
+- Must sign NDA and Contractor Services Agreement before starting.
+- No Form I-9 required; instead, complete Form W-9.
+- Contractors are not entitled to overtime pay, sick leave, or workers' compensation under federal law.
+
+### Legal Distinction
+Misclassification of workers carries significant legal risk. The IRS and state labor boards assess:
+1. **Behavioral control**: Does Acme direct how the work is done?
+2. **Financial control**: Does Acme provide tools, set payment terms?
+3. **Relationship type**: Is there a contract? Benefits?
+
+Questions about worker classification should be directed to legal@acmecorp.com.

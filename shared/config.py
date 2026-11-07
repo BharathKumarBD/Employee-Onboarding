@@ -1,7 +1,10 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT_DIR / ".env")
+
 SEED_DATA_DIR = ROOT_DIR / "seed-data"
 DATA_DIR = ROOT_DIR / "data"
 CHROMA_PATH = DATA_DIR / "chroma"
@@ -24,11 +27,16 @@ ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "onboardai-secure-session-secret-key-2026")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
 DEFAULT_EMPLOYEE_PASSWORD = os.getenv("DEFAULT_EMPLOYEE_PASSWORD", "")
+TRUSTED_PROXIES = [
+    ip.strip()
+    for ip in os.getenv("TRUSTED_PROXIES", "127.0.0.1,::1,testclient").split(",")
+    if ip.strip()
+]
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.getenv(
         "ALLOWED_ORIGINS",
-        "*",
+        "http://localhost:5173,http://localhost:3000",
     ).split(",")
     if o.strip()
 ]

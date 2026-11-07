@@ -218,10 +218,11 @@ The project includes an automated test framework:
 Located in `tests/test_improvements.py`. Runs in under 3 seconds with zero external dependencies:
 ```powershell
 python tests/test_improvements.py
+python tests/test_api_contract.py
 ```
-*Coverage*: 15 comprehensive suites covering PBKDF2 password hashing, signed tamper-proof session tokens, employee IDOR authorization, admin access restrictions, tool argument validation, equipment status workflows, prompt injection defenses, rate limiting, training schedules, assignment profiles, Markdown chunking, prompt syntax, and structured audit logging.
+*Coverage*: 26 comprehensive suites covering PBKDF2 password hashing, signed tamper-proof session tokens, employee IDOR authorization, admin access restrictions, tool argument validation, equipment status workflows, prompt injection defenses, rate limiting, training schedules, assignment profiles, Markdown chunking, prompt syntax, structured audit logging, payroll PII masking and validation, regulatory document vault auto-seeding and e-signatures, worker matrix resolution, deterministic compliance gating, HITL action proposals, telemetry accounting, and automated OpenAPI contract tests.
 
-### 2. Evaluation Scenarios (28 Baseline vs 32 Multi-Region)
+### 2. Evaluation Scenarios (28 Baseline → 32 Multi-Region → 36 Enterprise)
 Located in `evals/scenarios.yaml` and `evals/run_evals.py`:
 - **Baseline Suite (28 Scenarios)**: Evaluates core handbook RAG retrieval, proactive 30-day task generation, check-in scheduling, and prompt injection defense.
 - **Extended Multi-Region Suite (32 Scenarios)**: Adds 4 verified location-specific compliance and benefits scenarios:
@@ -229,9 +230,15 @@ Located in `evals/scenarios.yaml` and `evals/run_evals.py`:
   2. `india_statutory_benefits`: Provident Fund (12%), Gratuity Act, ESIC, Professional Tax.
   3. `usa_health_and_retirement`: 401(k) matching (4%, 4-year vesting), HSA health plans.
   4. `usa_i9_verification`: Form I-9 employment eligibility verification within 3 business days.
+- **Enterprise Playbook Suite (36 Scenarios)**: Adds 4 advanced enterprise workflow scenarios:
+  5. `payroll_setup_inquiry`: Direct deposit setup, masked account, and bank disbursement rules.
+  6. `document_signing_i9`: Form I-9 legal verification deadline within 3 business days for USA.
+  7. `contractor_vs_fte_benefits`: Grounded policy check confirming contractors are not eligible for 401(k)/dental.
+  8. `compliance_prerequisite_blocking`: Security Awareness Training prerequisite gating AWS/GitHub access.
 - **Evaluation Pass Rate**:
   - **Baseline (initial)**: 22 / 28 passed (78.6%)
-  - **After Full Implementation**: **32 / 32 passed (100%)** verified across all scenarios.
+  - **Intermediate Multi-Region**: 32 / 32 passed (100%)
+  - **Full Playbook Implementation**: **36 / 36 passed (100%)** verified across all scenarios.
 
 ---
 
@@ -242,9 +249,11 @@ Located in `evals/scenarios.yaml` and `evals/run_evals.py`:
 | `OPENAI_API_KEY` | *(Required)* | API key for OpenAI, Groq, or OpenRouter. |
 | `LLM_MODEL` | `openai/gpt-oss-120b` or `gpt-4o-mini` | Model identifier used across all agents. |
 | `LLM_BASE_URL` | `https://api.groq.com/openai/v1` | Custom endpoint URL for open-weight / local models. |
-| `DATABASE_URL` | `postgresql://onboardai:onboardai@postgres:5432/onboardai` | PostgreSQL connection string. |
-| `ADMIN_API_KEY` | `admin123` | Secret key for administrative endpoints (`X-Admin-Key`). |
-| `ALLOWED_ORIGINS` | `*` | Comma-separated list of allowed CORS origins. |
+| `DATABASE_URL` | `postgresql://onboardai:onboardai@localhost:5432/onboardai` | PostgreSQL connection string. |
+| `ADMIN_API_KEY` | *(Configured)* | Secret key for administrative endpoints (`X-Admin-Key`). |
+| `ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Strict comma-separated list of allowed CORS origins (no wildcard with credentials). |
+| `TRUSTED_PROXIES` | `127.0.0.1,::1` | Reverse proxy IPs allowed to supply `X-Forwarded-For`. |
+| `SECRET_KEY` | *(Configured)* | Long secret string used to sign employee session JWTs. |
 
 ---
 
@@ -289,11 +298,11 @@ Employee-Onboarding/
 ├── evals/
 │   ├── run_evals.py               # Deterministic golden scenario test runner
 │   ├── run_deepeval.py            # DeepEval LLM-as-judge metric runner
-│   └── scenarios.yaml             # 32 golden scenario definitions
+│   └── scenarios.yaml             # 36 golden scenario definitions
 ├── frontend/
 │   ├── src/
 │   │   ├── api.ts                 # Typed API client functions and TypeScript interfaces
-│   │   ├── pages/ChatPage.tsx     # Main onboarding chat and task sidebar UI
+│   │   ├── pages/ChatPage.tsx     # Main onboarding chat, HITL cards, and telemetry UI
 │   │   ├── pages/CheckinsAdmin.tsx# Admin dashboard for scheduled check-ins
 │   │   └── pages/EvalsAdmin.tsx   # Dashboard displaying automated test reports
 │   └── package.json               # React 19 dependencies & build scripts
@@ -301,21 +310,26 @@ Employee-Onboarding/
 │   └── server.py                  # FastMCP server exposing tools via stdio
 ├── seed-data/
 │   ├── benefits-guide.md          # Global health, wellness, and retirement guide
-│   ├── employee-handbook.md       # Global PTO, remote policy, and code of conduct
+│   ├── employee-handbook.md       # Global PTO, hardware tiers, payroll direct deposit
 │   ├── it-setup.md                # Laptop, VPN, and IT helpdesk guide
 │   ├── location-india.md          # India statutory benefits, leave, and holidays
 │   ├── location-usa.md            # USA 401(k), I-9 verification, and federal holidays
 │   └── onboarding-checklist.md    # Standard 30-day onboarding task schedule
 ├── shared/
-│   ├── assignments.py             # Manager and onboarding buddy assignment logic
-│   ├── config.py                  # Global environment variables and settings
+│   ├── assignments.py             # Manager, buddy, location, worker_type, department matrix
+│   ├── auth.py                    # JWT token creation, password hashing, and IDOR enforcement
+│   ├── compliance.py              # Deterministic compliance engine and training prerequisite gating
+│   ├── config.py                  # Global environment variables, trusted proxies, and CORS settings
 │   ├── db.py                      # PostgreSQL schema migrations and connection pool
+│   ├── documents.py               # Regulatory document signing vault (I-9, NDA, W-4, Form 11)
 │   ├── equipment.py               # Hardware allocation catalog and requests
-│   ├── rag.py                     # ChromaDB vector retrieval and fallback keyword search
+│   ├── payroll.py                 # Direct deposit submission, routing/IFSC validation, PII masking
+│   ├── rag.py                     # ChromaDB regional vector retrieval and fallback keyword search
 │   ├── tasks.py                   # Onboarding task checklist CRUD operations
 │   └── training.py                # Compliance training assignment and tracking
 ├── tests/
-│   └── test_improvements.py       # Comprehensive 8-suite unit test runner
+│   ├── test_improvements.py       # Comprehensive 26-suite unit test runner
+│   └── test_api_contract.py       # Automated OpenAPI contract test suite
 └── docker-compose.yml             # Multi-container orchestration (Postgres, Backend, Frontend)
 ```
 

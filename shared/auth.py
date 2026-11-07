@@ -109,7 +109,9 @@ def get_current_user_optional(
             return claims
 
     # 3. Check X-Admin-Key
-    if admin_key and ADMIN_API_KEY and admin_key == ADMIN_API_KEY:
+    import shared.config as config
+    admin_secret = getattr(config, "ADMIN_API_KEY", "").strip()
+    if admin_key and admin_secret and hmac.compare_digest(admin_key, admin_secret):
         return {"sub": "admin", "role": "admin"}
 
     return None
@@ -132,13 +134,19 @@ def get_current_user(
 
 def require_employee_access(
     requested_employee_id: str,
-    user: dict[str, Any],
+    user: dict[str, Any] | None,
 ) -> None:
     """Enforce strict server-side employee authorization to prevent IDOR vulnerabilities.
     
     Admins can access any employee record.
     Employees can ONLY access their own records.
+    Unauthenticated callers are strictly rejected with 401.
     """
+    if not user or not isinstance(user, dict):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please log in or provide a valid session token.",
+        )
     if user.get("role") == "admin":
         return
 
@@ -146,7 +154,7 @@ def require_employee_access(
     if not user_sub or user_sub != requested_employee_id:
         raise HTTPException(
             status_code=403,
-            detail=f"Access forbidden: You cannot access or modify employee '{requested_employee_id}' data.",
+            detail=f"Access forbidden: Authenticated as '{user_sub}', cannot access employee '{requested_employee_id}' data.",
         )
 
 

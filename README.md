@@ -63,7 +63,7 @@ This project is built to satisfy industry standards and enterprise evaluation re
 | **Data Storage** | PostgreSQL, SQLite, or MongoDB | PostgreSQL 16 (`psycopg3`) with normalized schemas |
 | **API Contract** | OpenAPI Specification | Dynamic at `/openapi.json` and static in [`docs/openapi.json`](docs/openapi.json) |
 | **Validation** | Pydantic / JSON Schema | Pydantic v2 on all API schemas and tool parameters |
-| **Testing** | Unit, Integration, & Evaluation | 15-suite unit tests (`tests/test_improvements.py`), 32 golden evals, and DeepEval |
+| **Testing** | Unit, Integration, & Evaluation | 26-suite unit tests (`tests/test_improvements.py`), OpenAPI contract tests (`tests/test_api_contract.py`), 36 golden evals, and DeepEval |
 | **Delivery** | GitHub repository with CI checks | Documented repository with automated CI workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) |
 
 ---
@@ -89,8 +89,12 @@ To satisfy requirements for open-source / open-weight models, OnboardAI supports
 - **Custom FastMCP Server**: Exposing HR tools over stdio for Cursor and Claude Desktop integrations
 - **Chroma RAG & Fallback Engine**: Hybrid semantic vector retrieval and Markdown seed search with strict document citations
 - **React UI**: Streaming chat with token-level updates, citation badges, tool-call visual indicators, and real-time onboarding progress sidebar
-- **Comprehensive Eval Harness**: 32 golden scenarios testing RAG accuracy, tool executions, and prompt-injection defense
+- **Comprehensive Eval Harness**: 36 golden scenarios testing RAG accuracy, tool executions, compliance gates, and prompt-injection defense
 - **Enterprise Security & Auth**: Salted PBKDF2 hashing, HMAC session tokens, IDOR prevention, sliding-window rate limiting, and admin audit logging
+- **Payroll & Regulatory Document Vault (Phase 1)**: Bank details submission with PII masking, routing/IFSC validation, and country-tailored document e-signing (Form I-9, W-4, EPF Form 11, NDA)
+- **Multi-Dimensional Worker Matrix & Compliance FSM (Phase 2)**: Location × Worker Type × Department × Onboarding Stage composite profiling with deterministic access gating (Security Training prerequisites)
+- **Two-Way Human-in-the-Loop (HITL) Cards (Phase 3)**: Interactive Action Confirmation Cards for equipment orders and calendar scheduling with user confirmation before execution
+- **Enterprise Observability & Regional Partitioning (Phase 4)**: Node-level execution latency waterfalls, token usage and cost accounting, and ChromaDB regional vector partitioning
 
 ## Security & Governance
 
@@ -303,10 +307,15 @@ The evaluation suite contains **32 deterministic scenarios** in `evals/scenarios
 | **india_statutory_benefits** | India PF (12%), Gratuity, ESIC statutory benefits |
 | **usa_health_and_retirement** | USA 401(k) retirement match and HSA health options |
 | **usa_i9_verification** | USA Form I-9 verification within 3 business days |
+| **payroll_setup_inquiry** | Direct deposit setup, masked account, and bank disbursement |
+| **document_signing_i9** | Form I-9 legal deadline within 3 days for USA employees |
+| **contractor_vs_fte_benefits** | Grounded explanation that contractors are not eligible for 401(k)/dental |
+| **compliance_prerequisite_blocking** | Access to AWS/GitHub gated by Security Awareness Training |
 
 **Evaluation Progression:**
 - **Initial Baseline**: 22 / 28 golden scenarios passed (78.6%)
-- **Full Implementation**: **32 / 32 golden scenarios passed (100%)**
+- **Intermediate**: 32 / 32 golden scenarios passed (100%)
+- **Full Playbook Implementation**: **36 / 36 golden scenarios passed (100%)**
 
 ---
 

@@ -6,6 +6,8 @@ export interface ChatMessage {
   citations?: string[];
   toolCalls?: string[];
   agentEvents?: AgentEvent[];
+  proposals?: ActionProposal[];
+  trace?: ExecutionTrace;
 }
 
 export interface AgentEvent {
@@ -39,6 +41,7 @@ export interface DemoEmployee {
   location?: string;
   manager?: string;
   buddy?: string;
+  access_token?: string;
 }
 
 export interface EquipmentItem {
@@ -67,6 +70,60 @@ export interface EmployeeAssignment {
   buddy_name?: string;
   buddy_email?: string;
   location?: string;
+  worker_type?: string;
+  department?: string;
+  onboarding_stage?: string;
+}
+
+// Phase 1: Payroll & Document interfaces
+export interface PayrollProfile {
+  employee_id: string;
+  bank_name?: string;
+  account_number_masked?: string;
+  routing_or_ifsc_code?: string;
+  currency: string;
+  tax_filing_status?: string;
+  withholding_allowances: number;
+  status: string;
+  verified_at?: string;
+  message?: string;
+}
+
+export interface EmployeeDocument {
+  id: number;
+  employee_id: string;
+  document_code: string;
+  document_title: string;
+  mandatory: boolean;
+  deadline_day: number;
+  status: string;
+  signed_at?: string;
+  verified_by?: string;
+  created_at: string;
+}
+
+// Phase 3: HITL Action Proposal
+export interface ActionProposal {
+  status: 'proposed';
+  action_type: string;
+  action_id: string;
+  title: string;
+  details: Record<string, unknown>;
+}
+
+// Phase 4: Execution Trace
+export interface ExecutionTrace {
+  total_latency_ms: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  nodes: {
+    node: string;
+    latency_ms: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    cost_usd: number;
+  }[];
 }
 
 export interface Checkin {
@@ -187,7 +244,11 @@ export async function fetchEvalResults(): Promise<EvalReportBundle> {
 
 export async function fetchDemoEmployee(): Promise<DemoEmployee> {
   const res = await fetch(`${API_BASE}/api/employee/demo`, { headers: authHeaders() });
-  return res.json();
+  const data: DemoEmployee = await res.json();
+  if (data.access_token) {
+    setAuthToken(data.access_token);
+  }
+  return data;
 }
 
 export async function fetchOnboardingStatus(employeeId: string): Promise<OnboardingStatus> {
@@ -249,6 +310,40 @@ export async function fetchAssignments(employeeId: string): Promise<EmployeeAssi
   return res.json();
 }
 
+export async function updateAssignments(
+  employeeId: string,
+  data: Partial<EmployeeAssignment>,
+  adminKey?: string,
+): Promise<EmployeeAssignment> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (adminKey) headers['X-Admin-Key'] = adminKey;
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/assignments`, {
+    method: 'POST',
+    headers: authHeaders(headers),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updatePersona(
+  employeeId: string,
+  data: {
+    location?: string;
+    worker_type?: string;
+    department?: string;
+    onboarding_stage?: string;
+  },
+): Promise<EmployeeAssignment> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/persona`, {
+    method: 'PATCH',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function fetchCheckins(employeeId?: string, adminKey?: string): Promise<Checkin[]> {
   const params = employeeId ? `?employee_id=${encodeURIComponent(employeeId)}` : '';
   const headers: Record<string, string> = {};
@@ -257,6 +352,71 @@ export async function fetchCheckins(employeeId?: string, adminKey?: string): Pro
   if (!res.ok) throw new Error('Failed to fetch check-ins');
   const data = await res.json();
   return data.checkins;
+}
+
+// Phase 1: Payroll API
+export async function fetchPayroll(employeeId: string): Promise<PayrollProfile> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/payroll`, { headers: authHeaders() });
+  return res.json();
+}
+
+export async function submitPayroll(
+  employeeId: string,
+  bankName: string,
+  accountLast4: string,
+  routingOrIfsc: string,
+  taxStatus: string,
+  currency = 'EUR',
+): Promise<PayrollProfile> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/payroll/submit`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      bank_name: bankName,
+      account_number_last4: accountLast4,
+      routing_or_ifsc_code: routingOrIfsc,
+      tax_filing_status: taxStatus,
+      currency,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// Phase 1: Documents API
+export async function fetchDocuments(employeeId: string): Promise<EmployeeDocument[]> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/documents`, { headers: authHeaders() });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.documents || [];
+}
+
+export async function signEmployeeDocument(
+  employeeId: string,
+  documentCode: string,
+): Promise<EmployeeDocument> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/documents/sign`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ document_code: documentCode }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// Phase 3: HITL Action Execution
+export async function executeConfirmedAction(
+  employeeId: string,
+  actionType: string,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const res = await fetch(`${API_BASE}/api/onboarding/${employeeId}/actions/execute`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ action_type: actionType, payload }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }
 
 export async function sendChat(
